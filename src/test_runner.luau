@@ -1,26 +1,47 @@
--- backend.luau
-local net = require("@lune/net")
+--!strict
+--
+-- REQUIRES
+--
+local net   = require("@lune/net")
 local serde = require("@lune/serde")
-local task = require("@lune/task")
-local fs = require("@lune/fs")
+local task  = require("@lune/task")
+local fs    = require("@lune/fs")
+local luau  = require("@lune/luau")
+--
+-- LOCAL TYPES
+--
+type Test_Status           = "Passed" | "Skipped" | "Failed running" | "Failed test conditions" 
 
-local luau = require("@lune/luau")
-local Test_Folder = "../tests"
-
--- Configuration
-local PORT = 8080
-
--- State management
+type Test_Info = {
+    name               : string,
+    path_to_test_file  : string,
+    status             : Test_Status,
+    error              : string?,
+    execution_duration : number,
+}
+--
+-- CONSTANTS
+--
+local TEST_FOLDER   = "../tests"
+local FRONTEND_HTML = fs.readFile("./front_end.html")
+local PORT          = (8080)
+--
+-- VARIABLES
+--
 local testResults = {
     total       = 0,
     passed      = 0,
     failed      = 0,
     skipped     = 0,
-    tests       = {},
+    tests       = {} :: {Test_Info},
     isRunning   = false,
-    lastRunTime = nil
+    lastRunTime = 0
 }
+--
+-- LOCAL FUNCTIONS
+--
 
+-- Runs all the tests in the TEST_FOLDER.
 local function runTests()
     if testResults.isRunning then
         return false, "Tests are already running"
@@ -41,7 +62,7 @@ local function runTests()
         --
         -- Check if test folder exists.
         --
-        if not fs.isDir(Test_Folder) then
+        if not fs.isDir(TEST_FOLDER) then
             testResults.tests = {
                 {
                     name = "Test Runner Error",
@@ -54,12 +75,12 @@ local function runTests()
             testResults.failed = 1
             testResults.total = 1
             testResults.isRunning = false
-            return
+            return false, "Test folder not found"
         end
         --
         -- Get all test files.
         --
-        local entry_paths_list = fs.readDir(Test_Folder)
+        local entry_paths_list = fs.readDir(TEST_FOLDER)
         local my_tests = {}
         local startTime = os.clock()
         --
@@ -71,7 +92,7 @@ local function runTests()
                 continue
             end
             
-            local file_path = Test_Folder .. "/" .. entry_path
+            local file_path = TEST_FOLDER .. "/" .. entry_path
             local module_content = fs.readFile(file_path)
             
             print(`Module content:\n{module_content}`)
@@ -91,12 +112,12 @@ local function runTests()
                 })
             else
                 -- Handle invalid test module
-                local testResult = {
-                    name     = entry_path:gsub("%.luau$", ""):gsub("%.lua$", ""),
-                    planPath = file_path,
-                    status   = "failed",
-                    error    = "Failed to load test module: " .. (module_returned_func or "unknown error"),
-                    duration = 0
+                local testResult: Test_Info = {
+                    name               = entry_path:gsub("%.luau$", ""):gsub("%.lua$", ""),
+                    path_to_test_file  = file_path,
+                    status             = "Failed running",
+                    error              = "Failed to load test module: " .. (module_returned_func or "unknown error"),
+                    execution_duration = 0
                 }
                 table.insert(testResults.tests, testResult)
                 testResults.failed += 1
@@ -108,18 +129,18 @@ local function runTests()
             if #testResults.tests == 0 then
                 -- No tests found
                 table.insert(testResults.tests, {
-                    name = "No Tests Found",
-                    planPath = Test_Folder,
-                    status = "skipped",
-                    error = "No valid test modules found in the test folder",
-                    duration = 0
+                    name               = "No Tests Found",
+                    path_to_test_file  = TEST_FOLDER,
+                    status             = "Skipped",
+                    error              = "No valid test modules found in the test folder",
+                    execution_duration = 0
                 })
                 testResults.skipped = 1
                 testResults.total   = 1
             end
             testResults.lastRunTime = 0
             testResults.isRunning   = false
-            return
+            return false, "No valid test modules found in the test folder"
         end
         
         -- Run each test
@@ -129,10 +150,12 @@ local function runTests()
             local test_end        = os.clock()
             local duration        = (test_end - test_start) * 1000 -- Convert to milliseconds
             
-            local testResult = {
-                name     = test_info.name,
-                planPath = test_info.path,
-                duration = math.floor(duration * 100) / 100 -- Round to 2 decimal places
+            local testResult: Test_Info = {
+                name               = test_info.name,
+                status             = "Passed",
+                execution_duration = math.floor(duration * 100) / 100, -- Round to 2 decimal places
+                error              = nil,
+                path_to_test_file  = test_info.path
             }
             
             if success then
@@ -140,29 +163,29 @@ local function runTests()
                 print(`Module successfully executed? => {success}`)
                 print(`Module execution result? => {result}`)
                 if result == "Passed" then
-                    
-                    testResult.status   = "Passed"
+                    -- Test returned "Passed".
+                    testResult.status           = "Passed"
                     testResults.passed += 1
                 elseif result == "Failed" then
-                    
-                    testResult.status = "Failed"
-                    testResult.error  = "Test returned 'Failed'"
-                    testResults.failed += 1
+                    -- Test returned "Failed".
+                    testResult.status           = "Failed test conditions"
+                    testResult.error            = "Test returned 'Failed'"
+                    testResults.failed         += 1
                 elseif result == "Skipped" then
-                    
-                    testResult.status    = "Skipped"
-                    testResults.skipped += 1
+                    -- Skipped the test.
+                    testResult.status            = "Skipped"
+                    testResults.skipped         += 1
                 else
-                    -- Invalid return value
-                    testResult.status   = "Failed"
-                    testResult.error    = `Invalid return value: {result}`
-                    testResults.failed += 1
+                    -- Invalid test return value.
+                    testResult.status            = "Failed running"
+                    testResult.error             = `Invalid return value: {result}`
+                    testResults.failed          += 1
                 end
             else
-                -- Test threw an error
-                testResult.status   = "failed"
-                testResult.error    = result -- This is the error message from pcall
-                testResults.failed += 1
+                -- Test threw an error.
+                testResult.status           = "Failed running"
+                testResult.error            = result  -- This is the error message from pcall.
+                testResults.failed         += 1
             end
             
             table.insert(testResults.tests, testResult)
@@ -197,7 +220,7 @@ local function runTests()
         if testResults.failed > 0 then
             print("\nFailed tests:")
             for _, test in ipairs(testResults.tests) do
-                if test.status == "failed" then
+                if (test.status == "Failed running") or (test.status == "Failed test conditions") then
                     print(string.format("  - %s: %s", test.name, test.error or "No error message"))
                 end
             end
@@ -205,28 +228,25 @@ local function runTests()
         print("==================\n")
     end)
     
-    return true
+    return true, "Successfully ran all the tests."
 end
 
--- Serve the frontend HTML
-local frontendHTML = fs.readFile("./front_end.html")
-
--- HTTP Request Handler
-local function handleRequest(req)
+-- Handles the incoming HTTP requests.
+local function handleRequest(req): {body: string, headers: {string}?, status: number}
     local path = req.path
     local method = req.method
     
-    -- Serve frontend HTML
+    -- Send the FRONTEND_HTML page to the client.
     if path == "/" and method == "GET" then
         return {
             status = 200,
             headers = {
                 ["Content-Type"] = "text/html"
             },
-            body = frontendHTML
+            body = FRONTEND_HTML
         }
     
-    -- API: Get current test results
+    -- API: Get current test results.
     elseif path == "/results" and method == "GET" then
         return {
             status = 200,
@@ -236,7 +256,7 @@ local function handleRequest(req)
             body = serde.encode("json", testResults)
         }
     
-    -- API: Run tests
+    -- API: Run tests.
     elseif path == "/run" and method == "POST" then
         local success, message = runTests()
         return {
@@ -250,16 +270,21 @@ local function handleRequest(req)
             })
         }
     
-    -- 404 for other routes
+    -- 404 for other routes.
     else
         return {
-            status = 404,
-            body = "Not Found"
+            status  = 404,
+            body    = "Not Found",
+            headers = nil,
         }
     end
 end
 
--- Start the server
+--
+-- MODULE OPERATION
+--
+
+-- Print debug info about the local webserver.
 print(`                                           \
         TestEZ Runner Backend                     \
         ====================                      \
@@ -273,6 +298,5 @@ print(`                                           \
         Press Ctrl+C to stop                      \
                                                   \
 `)
-
--- Start HTTP server
+-- Start the local webserver.
 local server = net.serve(PORT, handleRequest)
