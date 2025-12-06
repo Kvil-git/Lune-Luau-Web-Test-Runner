@@ -1,7 +1,6 @@
 -- backend.luau
 local net = require("@lune/net")
 local serde = require("@lune/serde")
-local process = require("@lune/process")
 local task = require("@lune/task")
 local fs = require("@lune/fs")
 
