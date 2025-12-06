@@ -42,10 +42,10 @@
             border: 2px solid transparent;
         }
         
-        .stat-card.passed { border-color: #4CAF50; }
-        .stat-card.failed { border-color: #f44336; }
+        .stat-card.passed  { border-color: #4CAF50; }
+        .stat-card.failed  { border-color: #f44336; }
         .stat-card.skipped { border-color: #ff9800; }
-        .stat-card.total { border-color: #2196F3; }
+        .stat-card.total   { border-color: #2196F3; }
         
         .stat-value {
             font-size: 2.5em;
@@ -181,21 +181,21 @@
             
             data.tests.forEach(test => {
                 if (currentFilter !== 'all') {  // Specific status filter? => Check whether the current filter matches it.
-                    if (test.status !== currentFilter) {  // Current filter doesn't match the test status? => return.
+                    if (test.status_html_code !== currentFilter) {  // Current filter doesn't match the test status? => return.
                         return;
                     }
                 }
                 
                 const testItem = document.createElement('div');
-                testItem.className = `test-item ${test.status}`;
+                testItem.className = `test-item ${test.status_html_code}`;
                 
                 testItem.innerHTML = `                                                      \
                     <div class=\"test-name\">                                               \
                         <strong>${test.name}</strong>                                       \
                         ${test.planPath ? '<br><small>' + test.planPath + '</small>' : ''}  \
                     </div>                                                                  \
-                    <div class=\"status-badge status-${test.status}\">                      \
-                        ${test.status.toUpperCase()}                                        \
+                    <div class=\"status-badge status-${test.status_html_code}\">                      \
+                        ${test.status_html_code.toUpperCase()}                                        \
                     </div>`;
                 
                 if (test.error) {

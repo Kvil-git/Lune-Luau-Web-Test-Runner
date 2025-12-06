@@ -10,12 +10,14 @@ local luau  = require("@lune/luau")
 --
 -- LOCAL TYPES
 --
+type Test_Status_HTML_Code = "passed" | "skipped" | "failed" | "total"
 type Test_Status           = "Passed" | "Skipped" | "Failed running" | "Failed test conditions" 
 
 type Test_Info = {
     name               : string,
     path_to_test_file  : string,
     status             : Test_Status,
+    status_html_code   : Test_Status_HTML_Code,
     error              : string?,
     execution_duration : number,
 }
@@ -65,11 +67,12 @@ local function runTests()
         if not fs.isDir(TEST_FOLDER) then
             testResults.tests = {
                 {
-                    name = "Test Runner Error",
-                    planPath = "system",
-                    status = "failed",
-                    error = "Test folder not found: " .. Test_Folder,
-                    duration = 0
+                    name               = "Test Runner Error",
+                    path_to_test_file  = "System",
+                    status             = "Failed running",
+                    status_html_code   = "failed",
+                    error              = "Test folder not found: " .. TEST_FOLDER,
+                    execution_duration = 0,
                 }
             }
             testResults.failed = 1
@@ -116,6 +119,7 @@ local function runTests()
                     name               = entry_path:gsub("%.luau$", ""):gsub("%.lua$", ""),
                     path_to_test_file  = file_path,
                     status             = "Failed running",
+                    status_html_code   = "failed",
                     error              = "Failed to load test module: " .. (module_returned_func or "unknown error"),
                     execution_duration = 0
                 }
@@ -132,6 +136,7 @@ local function runTests()
                     name               = "No Tests Found",
                     path_to_test_file  = TEST_FOLDER,
                     status             = "Skipped",
+                    status_html_code   = "skipped",
                     error              = "No valid test modules found in the test folder",
                     execution_duration = 0
                 })
@@ -153,6 +158,7 @@ local function runTests()
             local testResult: Test_Info = {
                 name               = test_info.name,
                 status             = "Passed",
+                status_html_code   = "passed",
                 execution_duration = math.floor(duration * 100) / 100, -- Round to 2 decimal places
                 error              = nil,
                 path_to_test_file  = test_info.path
@@ -165,25 +171,30 @@ local function runTests()
                 if result == "Passed" then
                     -- Test returned "Passed".
                     testResult.status           = "Passed"
+                    testResult.status_html_code = "passed"
                     testResults.passed += 1
                 elseif result == "Failed" then
                     -- Test returned "Failed".
                     testResult.status           = "Failed test conditions"
+                    testResult.status_html_code = "failed"
                     testResult.error            = "Test returned 'Failed'"
                     testResults.failed         += 1
                 elseif result == "Skipped" then
                     -- Skipped the test.
                     testResult.status            = "Skipped"
+                    testResult.status_html_code  = "skipped"
                     testResults.skipped         += 1
                 else
                     -- Invalid test return value.
                     testResult.status            = "Failed running"
+                    testResult.status_html_code  = "failed"
                     testResult.error             = `Invalid return value: {result}`
                     testResults.failed          += 1
                 end
             else
                 -- Test threw an error.
                 testResult.status           = "Failed running"
+                testResult.status_html_code = "failed"
                 testResult.error            = result  -- This is the error message from pcall.
                 testResults.failed         += 1
             end
@@ -248,6 +259,7 @@ local function handleRequest(req): {body: string, headers: {string}?, status: nu
     
     -- API: Get current test results.
     elseif path == "/results" and method == "GET" then
+        print(serde.encode("json", testResults))
         return {
             status = 200,
             headers = {
