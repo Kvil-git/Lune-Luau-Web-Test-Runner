@@ -13,6 +13,23 @@ export type Test_Info = {
     error              : string?,
     execution_duration : number,
 }
+
+export type Test_Module = {
+    name: string,
+    path: string,
+
+    func: () -> string,
+}
+
+export type Test_Results = {
+    total:       number,
+    passed:      number,
+    failed:      number,
+    skipped:     number,
+    tests:      {Test_Info},
+    isRunning:   boolean,
+    lastRunTime: number?
+}
 --
 -- RETURN VALUE
 --
