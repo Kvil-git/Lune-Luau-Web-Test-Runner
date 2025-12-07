@@ -2,9 +2,6 @@
 --
 -- REQUIRES
 --
-local net         = require("@lune/net")
-local serde       = require("@lune/serde")
-
 local Types       = require("./Types")
 local Constants   = require("./Constants")
 local Test_Loader = require("./Test_Loader")
@@ -19,8 +16,6 @@ type Test_Module           = Types  .Test_Module
 -- CONSTANTS
 --
 local TEST_FOLDER   = Constants["TEST_FOLDER"]
-local FRONTEND_HTML = Constants["FRONTEND_HTML"]
-local PORT          = Constants["PORT"]
 --
 -- VARIABLES
 --
@@ -36,7 +31,9 @@ local test_results = {
 --
 -- MODULE DEFINITION
 --
-local Test_Runner = {}
+local Test_Runner = {
+    test_results = test_results
+}
 
 function Test_Runner.Reset_Results(): ()
     test_results.tests         = {}
@@ -70,18 +67,24 @@ end
 --    True  : Test was passed or skipped
 --    False : Test execution failed
 --
-function Test_Runner.Evaluate_Test_Results(success: boolean, result: any, test_result: Test_Info): boolean
+function Test_Runner.Evaluate_Test_Results(success: boolean, test_function_or_retrieval_error: any, test_result: Test_Info): boolean
     test_results.total += 1
 
-    if not success then
+    if success == false then
         -- Test threw an error.
+        local retrieval_error        =  test_function_or_retrieval_error
         test_result.status           = "Failed running"
         test_result.status_html_code = "failed"
-        test_result.error            =  result
+        test_result.error            =  retrieval_error
         test_results.failed         +=  1
         return false
     end
-    
+    --
+    -- Retrieval of the function was successful? => Call it to get the test results.
+    --
+    local test_function = test_function_or_retrieval_error
+    local result        = test_function()
+
     if result == "Passed" then
         -- Test returned "Passed".
         test_result.status            = "Passed"
@@ -102,10 +105,11 @@ function Test_Runner.Evaluate_Test_Results(success: boolean, result: any, test_r
         test_results.skipped         +=  1
         return true
     else
-        -- Invalid test return value.
+        -- Invalid test function return value.
+        local retrieval_error         =  test_function_or_retrieval_error
         test_result.status            = "Failed running"
         test_result.status_html_code  = "failed"
-        test_result.error             = `Invalid return value: {result}`
+        test_result.error             = `Invalid return value: {retrieval_error}`
         test_results.failed          +=  1
         return false
     end
@@ -124,8 +128,8 @@ function Test_Runner.Execute_Test(test_module: Test_Module): Test_Info
     -- it's values to the appropriate ones and return it.
     --
     local test_result: Test_Info = {
-        status             = "Passed",
-        status_html_code   = "passed",
+        status             = "Failed running",
+        status_html_code   = "failed",
         name               =  test_module.name,
         execution_duration =  duration,
         error              =  nil,
@@ -216,77 +220,7 @@ function Test_Runner.Run_Tests(): (boolean, string?)
     
     return true, "Successfully ran all tests"
 end
-
 --
--- LOCAL FUNCTIONS
+-- RETURN VALUE
 --
-
--- Handles the incoming HTTP requests.
-local function handleRequest(req): {body: string, headers: {string}?, status: number}
-    local path = req.path
-    local method = req.method
-    
-    -- Send the FRONTEND_HTML page to the client.
-    if path == "/" and method == "GET" then
-        return {
-            status = 200,
-            headers = {
-                ["Content-Type"] = "text/html"
-            },
-            body = FRONTEND_HTML
-        }
-    
-    -- API: Get current test results.
-    elseif path == "/results" and method == "GET" then
-        return {
-            status = 200,
-            headers = {
-                ["Content-Type"] = "application/json"
-            },
-            body = serde.encode("json", test_results)
-        }
-    
-    -- API: Run tests.
-    elseif path == "/run" and method == "POST" then
-        local success, message = Test_Runner.Run_Tests()
-        return {
-            status = 200,
-            headers = {
-                ["Content-Type"] = "application/json"
-            },
-            body = serde.encode("json", {
-                success = success,
-                message = message
-            })
-        }
-    
-    -- 404 for other routes.
-    else
-        return {
-            status  = 404,
-            body    = "Not Found",
-            headers = nil,
-        }
-    end
-end
-
---
--- MODULE OPERATION
---
-
--- Print debug info about the local webserver.
-print(`                                           \
-        TestEZ Runner Backend                     \
-        ====================                      \
-        Server running on http://localhost:{PORT} \
-                                                  \
-        Endpoints:                                \
-        GET  /         - Test runner dashboard    \
-        GET  /results  - Get current test results \
-        POST /run      - Trigger test execution   \
-                                                  \
-        Press Ctrl+C to stop                      \
-                                                  \
-`)
--- Start the local webserver.
-local server = net.serve(PORT, handleRequest)
+return Test_Runner
