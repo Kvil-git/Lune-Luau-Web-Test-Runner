@@ -7,8 +7,8 @@ local serde     = require("@lune/serde")
 local task      = require("@lune/task")
 local fs        = require("@lune/fs")
 local luau      = require("@lune/luau")
-local Types     = require("./types")
-local Constants = require("./constants")
+local Types     = require("./Types")
+local Constants = require("./Constants")
 --
 -- LOCAL TYPES
 --

@@ -8,7 +8,7 @@ local fs = require("@lune/fs")
 --
 local CONSTANTS = {
     ["TEST_FOLDER"]   = "../tests",
-    ["FRONTEND_HTML"] = fs.readFile("./front_end.html"),
+    ["FRONTEND_HTML"] = fs.readFile("./Front_End.html"),
     ["PORT"]          = (8080),
 }
 --
