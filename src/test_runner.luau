@@ -8,6 +8,7 @@ local task      = require("@lune/task")
 local fs        = require("@lune/fs")
 local luau      = require("@lune/luau")
 local Types     = require("./types")
+local Constants = require("./constants")
 --
 -- LOCAL TYPES
 --
@@ -17,9 +18,9 @@ type Test_Info             = Types  .Test_Info
 --
 -- CONSTANTS
 --
-local TEST_FOLDER   = "../tests"
-local FRONTEND_HTML = fs.readFile("./front_end.html")
-local PORT          = (8080)
+local TEST_FOLDER   = Constants["TEST_FOLDER"]
+local FRONTEND_HTML = Constants["FRONTEND_HTML"]
+local PORT          = Constants["PORT"]
 --
 -- VARIABLES
 --
