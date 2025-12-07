@@ -78,7 +78,7 @@ local function runTests()
         -- Get all test files.
         --
         local entry_paths_list = fs.readDir(TEST_FOLDER)
-        local my_tests = {}
+        local tests_from_test_folder = {}
         local startTime = os.clock()
         --
         -- Load all test modules.
@@ -102,7 +102,7 @@ local function runTests()
             end)
             
             if success and typeof(module_returned_func) == "function" then
-                table.insert(my_tests, {
+                table.insert(tests_from_test_folder, {
                     func = module_returned_func(),
                     name = entry_path:gsub("%.luau$", ""):gsub("%.lua$", ""),
                     path = file_path
@@ -123,7 +123,7 @@ local function runTests()
             end
         end
         
-        if #my_tests == 0 then
+        if #tests_from_test_folder == 0 then
             if #testResults.tests == 0 then
                 -- No tests found
                 table.insert(testResults.tests, {
@@ -141,9 +141,10 @@ local function runTests()
             testResults.isRunning   = false
             return false, "No valid test modules found in the test folder"
         end
-        
-        -- Run each test
-        for _, test_info in ipairs(my_tests) do
+        --
+        -- Run each test extracted from the test folder.
+        --
+        for _, test_info in ipairs(tests_from_test_folder) do
             local test_start      = os.clock()
             local success, result = pcall(test_info.func)
             local test_end        = os.clock()
@@ -159,9 +160,19 @@ local function runTests()
             }
             
             if success then
+                --
+                -- Test threw no error in pcall? => Get the actual test's
+                -- return value by running the test again, this time without a pcall.
+                --
                 result = test_info.func()
-                print(`Module successfully executed? => {success}`)
-                print(`Module execution result? => {result}`)
+                --
+                -- Debug prints.
+                --
+                print(`Is test execution successful? {success}`)
+                print(`Test execution result: {result}`)
+                --
+                -- Handle the test's return value.
+                --
                 if result == "Passed" then
                     -- Test returned "Passed".
                     testResult.status           = "Passed"
@@ -199,8 +210,13 @@ local function runTests()
         
         local endTime = os.clock()
         testResults.lastRunTime = (endTime - startTime) * 1000 -- Convert to milliseconds
-        
-        -- Sort tests by status (failed first, then passed, then skipped)
+        --
+        -- Sort tests by status:
+        --
+        -- 1) Failed
+        -- 2) Skipped
+        -- 3) Passed
+        --
         table.sort(testResults.tests, function(a, b)
             local statusOrder = {failed = 1, passed = 2, skipped = 3}
             local aOrder = statusOrder[a.status] or 4
@@ -213,8 +229,9 @@ local function runTests()
         end)
         
         testResults.isRunning = false
-        
-        -- Print summary to console
+        --
+        -- Print summary to console.
+        --
         print("\n=== Test Results ===")
         print(string.format("Total: %d",     testResults.total))
         print(string.format("Passed: %d",    testResults.passed))
