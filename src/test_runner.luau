@@ -2,25 +2,18 @@
 --
 -- REQUIRES
 --
-local net   = require("@lune/net")
-local serde = require("@lune/serde")
-local task  = require("@lune/task")
-local fs    = require("@lune/fs")
-local luau  = require("@lune/luau")
+local net       = require("@lune/net")
+local serde     = require("@lune/serde")
+local task      = require("@lune/task")
+local fs        = require("@lune/fs")
+local luau      = require("@lune/luau")
+local Types     = require("./types")
 --
 -- LOCAL TYPES
 --
-type Test_Status_HTML_Code = "passed" | "skipped" | "failed" | "total"
-type Test_Status           = "Passed" | "Skipped" | "Failed running" | "Failed test conditions" 
-
-type Test_Info = {
-    name               : string,
-    path_to_test_file  : string,
-    status             : Test_Status,
-    status_html_code   : Test_Status_HTML_Code,
-    error              : string?,
-    execution_duration : number,
-}
+type Test_Status_HTML_Code = Types  .Test_Status_HTML_Code
+type Test_Status           = Types  .Test_Status
+type Test_Info             = Types  .Test_Info
 --
 -- CONSTANTS
 --
