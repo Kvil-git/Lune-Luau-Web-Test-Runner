@@ -71,7 +71,7 @@ function Test_Runner.Evaluate_Test_Results(success: boolean, test_function_or_re
     test_results.total += 1
 
     if success == false then
-        -- Test threw an error.
+        -- Failed to retrieve a test function from the test file.
         local retrieval_error        =  test_function_or_retrieval_error
         test_result.status           = "Failed running"
         test_result.status_html_code = "failed"
@@ -83,6 +83,18 @@ function Test_Runner.Evaluate_Test_Results(success: boolean, test_function_or_re
     -- Retrieval of the function was successful? => Call it to get the test results.
     --
     local test_function = test_function_or_retrieval_error
+    local error_msg
+    success, error_msg = pcall(test_function)
+
+    if success == false then
+        -- Test threw an error.
+        test_result.status           = "Failed running"
+        test_result.status_html_code = "failed"
+        test_result.error            =  error_msg
+        test_results.failed         +=  1
+        return false
+    end
+
     local result        = test_function()
 
     if result == "Passed" then
