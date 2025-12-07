@@ -7,6 +7,7 @@ local serde     = require("@lune/serde")
 local task      = require("@lune/task")
 local fs        = require("@lune/fs")
 local luau      = require("@lune/luau")
+
 local Types     = require("./Types")
 local Constants = require("./Constants")
 --
@@ -270,7 +271,6 @@ local function handleRequest(req): {body: string, headers: {string}?, status: nu
     
     -- API: Get current test results.
     elseif path == "/results" and method == "GET" then
-        print(serde.encode("json", testResults))
         return {
             status = 200,
             headers = {
