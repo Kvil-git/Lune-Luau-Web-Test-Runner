@@ -43,8 +43,8 @@ local function runTests()
         return false, "Tests are already running"
     end
     
-    testResults.isRunning = true
-    testResults.lastRunTime = nil
+    testResults.isRunning   = true
+    testResults.lastRunTime = 0
     
     task.spawn(function()
         --
@@ -159,7 +159,7 @@ local function runTests()
             }
             
             if success then
-                local result = test_info.func()
+                result = test_info.func()
                 print(`Module successfully executed? => {success}`)
                 print(`Module execution result? => {result}`)
                 if result == "Passed" then
