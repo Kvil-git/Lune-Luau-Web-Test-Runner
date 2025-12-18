@@ -5,6 +5,7 @@
 local Types       = require("./Types")
 local Constants   = require("./Constants")
 local Test_Loader = require("./Test_Loader")
+local serde       = require("@lune/serde")
 --
 -- LOCAL TYPES
 --
@@ -69,6 +70,18 @@ end
 --
 function Test_Runner.Evaluate_Test_Results(success: boolean, test_function_or_retrieval_error: any, test_result: Test_Info): boolean
     test_results.total += 1
+
+    --
+    -- Handle errors of different types, not just string.
+    --
+    local error_type = typeof(test_function_or_retrieval_error)
+    if error_type ~= "string" then
+        if error_type == "table" then
+            test_function_or_retrieval_error = serde.encode("yaml", test_function_or_retrieval_error)
+        else
+            test_function_or_retrieval_error = tostring(test_function_or_retrieval_error)
+        end
+    end
 
     if success == false then
         -- Failed to retrieve a test function from the test file.
