@@ -4,6 +4,9 @@
     <title>Luau Test Runner</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * {
             margin: 0;
@@ -109,7 +112,7 @@
         
         button:hover { background: #1976D2; }
         
-        .controls { display: flex; gap: 10px; }
+        .controls { display: flex; gap: 10px; align-items: center; }
         
         .test-item.failed { background: rgba(244, 67, 54, 0.1); }
         .test-item.passed { background: rgba(76, 175, 80, 0.1); }
@@ -124,6 +127,64 @@
             cursor: pointer;
         }
         .filter-btn.active { background: #2196F3; }
+        
+        /* Toggle Switch Styles */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .toggle-label {
+            font-size: 0.9em;
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
@@ -133,6 +194,13 @@
             <div class="controls">
                 <button id="runTests">Run Tests</button>
                 <button id="refresh">Refresh</button>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoRefreshToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Auto Refresh</span>
+                </div>
             </div>
         </div>
         
@@ -169,6 +237,8 @@
 
     <script>
         let currentFilter = 'all';
+        let autoRefreshInterval = null;
+        const AUTO_REFRESH_INTERVAL = 5000; // 5 seconds
         
         function updateUI(data) {
             document.getElementById('total')   .textContent = data.total;
@@ -180,8 +250,8 @@
             testList.innerHTML = '';
             
             data.tests.forEach(test => {
-                if (currentFilter !== 'all') {  // Specific status filter? => Check whether the current filter matches it.
-                    if (test.status_html_code !== currentFilter) {  // Current filter doesn't match the test status? => return.
+                if (currentFilter !== 'all') {
+                    if (test.status_html_code !== currentFilter) {
                         return;
                     }
                 }
@@ -194,8 +264,8 @@
                         <strong>${test.name}</strong>                                       \
                         ${test.planPath ? '<br><small>' + test.planPath + '</small>' : ''}  \
                     </div>                                                                  \
-                    <div class=\"status-badge status-${test.status_html_code}\">                      \
-                        ${test.status_html_code.toUpperCase()}                                        \
+                    <div class=\"status-badge status-${test.status_html_code}\">            \
+                        ${test.status_html_code.toUpperCase()}                              \
                     </div>`;
                 
                 if (test.error) {
@@ -229,8 +299,37 @@
                 });
         }
         
-        document.getElementById('runTests') .addEventListener('click', runTests);
-        document.getElementById('refresh')  .addEventListener('click', fetchResults);
+        function setupAutoRefresh() {
+            const toggle = document.getElementById('autoRefreshToggle');
+            
+            // Function to start/stop auto-refresh based on toggle state
+            function updateAutoRefresh() {
+                if (toggle.checked) {
+                    // Start auto-refresh if not already running
+                    if (!autoRefreshInterval) {
+                        autoRefreshInterval = setInterval(fetchResults, AUTO_REFRESH_INTERVAL);
+                        console.log('Auto-refresh enabled');
+                    }
+                } else {
+                    // Stop auto-refresh if running
+                    if (autoRefreshInterval) {
+                        clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = null;
+                        console.log('Auto-refresh disabled');
+                    }
+                }
+            }
+            
+            // Initialize auto-refresh based on initial toggle state
+            updateAutoRefresh();
+            
+            // Update auto-refresh when toggle changes
+            toggle.addEventListener('change', updateAutoRefresh);
+        }
+        
+        // Event listeners
+        document.getElementById('runTests').addEventListener('click', runTests);
+        document.getElementById('refresh').addEventListener('click', fetchResults);
         
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -241,8 +340,9 @@
             });
         });
         
+        // Initial setup
         fetchResults();
-        setInterval(fetchResults, 5000);
+        setupAutoRefresh();
     </script>
 </body>
 </html>
