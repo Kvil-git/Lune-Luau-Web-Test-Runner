@@ -140,7 +140,7 @@ end
 if (not no_preproc) then
     print("[1/2] Running test pipeline ...")
     local result = process.exec("python3", {
-        "./test-runner/Parse_Scripts_For_Tests.py",
+        "./test_runner/Parse_Scripts_For_Tests.py",
         Constants["SOURCE_FOLDER"],
         Constants["OUTPUT_FOLDER"],
         "--project-mocks",

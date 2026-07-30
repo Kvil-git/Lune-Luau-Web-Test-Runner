@@ -52,7 +52,7 @@ end
 --
 -- LOCAL CONSTANTS
 --
-local SUBMODULE_PREFIX = "./test-runner"
+local SUBMODULE_PREFIX = "./test_runner"
 
 --
 -- Builds a path relative to the submodule's directory.
