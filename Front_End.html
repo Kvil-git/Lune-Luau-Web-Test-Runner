@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Luau Test Runner</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg:         #141414;
+            --surface:    #1e1e1e;
+            --surface2:   #282828;
+            --border:     #333;
+            --text:       #e0e0e0;
+            --text-muted: #888;
+            --pass:       #4caf50;
+            --fail:       #f44336;
+            --skip:       #ff9800;
+            --blue:       #2196f3;
+            --radius:     6px;
+            --mono:       'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        /* ── Header ──────────────────────────────────────────────────── */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -.3px; }
+
+        .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* ── Status dot ──────────────────────────────────────────────── */
+        #status-dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            display: inline-block;
+            flex-shrink: 0;
+            transition: background .3s;
+        }
+        #status-dot.running { background: var(--blue); animation: pulse 1s infinite; }
+        #status-dot.pass    { background: var(--pass); }
+        #status-dot.fail    { background: var(--fail); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; } 50% { opacity: .35; }
+        }
+
+        /* ── Buttons ─────────────────────────────────────────────────── */
+        button {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 7px 16px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: .875rem;
+            font-weight: 500;
+            transition: background .15s, border-color .15s;
+        }
+        button:hover { background: #333; border-color: #555; }
+        button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+        button.primary:hover { background: #1976d2; border-color: #1976d2; }
+
+        /* ── Stat cards ──────────────────────────────────────────────── */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        @media(max-width:640px) { .stats { grid-template-columns: repeat(2,1fr); } }
+
+        .stat-card {
+            background: var(--surface);
+            padding: 16px 20px;
+            border-radius: var(--radius);
+            border-left: 3px solid transparent;
+        }
+        .stat-card.total   { border-left-color: var(--blue); }
+        .stat-card.passed  { border-left-color: var(--pass); }
+        .stat-card.failed  { border-left-color: var(--fail); }
+        .stat-card.skipped { border-left-color: var(--skip); }
+
+        .stat-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+        .stat-value { font-size: 2rem; font-weight: 700; margin-top: 4px; }
+        .stat-card.total   .stat-value { color: var(--blue); }
+        .stat-card.passed  .stat-value { color: var(--pass); }
+        .stat-card.failed  .stat-value { color: var(--fail); }
+        .stat-card.skipped .stat-value { color: var(--skip); }
+
+        /* ── Filter bar ──────────────────────────────────────────────── */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn { padding: 5px 14px; font-size: .8rem; }
+        .filter-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+        .run-time { margin-left: auto; font-size: .8rem; color: var(--text-muted); }
+
+        /* ── Suite container ─────────────────────────────────────────── */
+        .suite-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .suite {
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .suite-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 16px;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+        .suite-header:hover { background: #2e2e2e; }
+
+        .suite-chevron {
+            width: 16px; height: 16px;
+            flex-shrink: 0;
+            transition: transform .2s;
+            opacity: .6;
+        }
+        .suite.collapsed .suite-chevron { transform: rotate(-90deg); }
+        .suite.collapsed .suite-body    { display: none; }
+
+        .suite-name { font-weight: 600; font-size: .9rem; flex: 1; }
+
+        .suite-counts {
+            display: flex; gap: 8px;
+            font-size: .75rem;
+        }
+        .suite-counts span { display: flex; align-items: center; gap: 3px; }
+        .suite-counts .c-pass   { color: var(--pass); }
+        .suite-counts .c-fail   { color: var(--fail); }
+        .suite-counts .c-skip   { color: var(--skip); }
+
+        .suite-body { padding: 6px 0; }
+
+        /* ── Tree nodes ──────────────────────────────────────────────── */
+        .tree-node { }
+
+        /* describe row */
+        .describe-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .describe-row:hover { background: rgba(255,255,255,.03); }
+
+        .describe-chevron {
+            width: 14px; height: 14px;
+            flex-shrink: 0;
+            opacity: .5;
+            transition: transform .15s;
+        }
+        .describe-row.collapsed .describe-chevron { transform: rotate(-90deg); }
+        .describe-row.collapsed + .describe-children { display: none; }
+
+        .describe-name { font-size: .875rem; font-weight: 600; color: #c9d1d9; }
+
+        /* it row */
+        .it-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 16px 6px 32px;
+        }
+        .it-row.pass   { }
+        .it-row.fail   { background: rgba(244,67,54,.06); }
+        .it-row.skip   { opacity: .55; }
+
+        .it-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 5px;
+        }
+        .it-row.pass .it-dot { background: var(--pass); }
+        .it-row.fail .it-dot { background: var(--fail); }
+        .it-row.skip .it-dot { background: var(--skip); }
+
+        .it-body { flex: 1; min-width: 0; }
+        .it-name { font-size: .85rem; word-break: break-word; }
+
+        .it-error {
+            margin-top: 6px;
+            font-family: var(--mono);
+            font-size: .78rem;
+            color: #ff7b7b;
+            background: rgba(255,60,60,.08);
+            border-left: 2px solid var(--fail);
+            padding: 8px 10px;
+            border-radius: 0 4px 4px 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .duration-badge {
+            font-size: .7rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            margin-left: auto;
+            font-family: var(--mono);
+        }
+
+        /* describe-level children indent */
+        .describe-children { padding-left: 16px; }
+
+        /* ── Load error ──────────────────────────────────────────────── */
+        .load-error {
+            margin: 10px 16px;
+            padding: 10px 12px;
+            background: rgba(244,67,54,.1);
+            border: 1px solid rgba(244,67,54,.3);
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: .8rem;
+            color: #ff8a80;
+            white-space: pre-wrap;
+        }
+
+        /* ── Empty / connecting states ───────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+        /* ── Connection badge ────────────────────────────────────────── */
+        #ws-badge {
+            font-size: .7rem;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        #ws-badge.connected { color: var(--pass); border-color: var(--pass); }
+        #ws-badge.error     { color: var(--fail); border-color: var(--fail); }
+    </style>
+</head>
+<body>
+<div class="container" style="max-width:1100px;margin:0 auto;">
+
+    <!-- Header -->
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span id="status-dot"></span>
+            <h1>Luau Test Runner</h1>
+        </div>
+        <div class="header-right">
+            <span id="ws-badge">Connecting…</span>
+            <button id="btn-run" class="primary">▶ Run Tests</button>
+            <button id="btn-expand-all">Expand All</button>
+            <button id="btn-collapse-all">Collapse All</button>
+        </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stats">
+        <div class="stat-card total">
+            <div class="stat-label">Total</div>
+            <div class="stat-value" id="stat-total">–</div>
+        </div>
+        <div class="stat-card passed">
+            <div class="stat-label">Passed</div>
+            <div class="stat-value" id="stat-passed">–</div>
+        </div>
+        <div class="stat-card failed">
+            <div class="stat-label">Failed</div>
+            <div class="stat-value" id="stat-failed">–</div>
+        </div>
+        <div class="stat-card skipped">
+            <div class="stat-label">Skipped</div>
+            <div class="stat-value" id="stat-skipped">–</div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="pass">Passed</button>
+        <button class="filter-btn" data-filter="fail">Failed</button>
+        <button class="filter-btn" data-filter="skip">Skipped</button>
+        <span class="run-time" id="run-time"></span>
+    </div>
+
+    <!-- Suite list -->
+    <div id="suite-list" class="suite-list">
+        <div class="empty-state">
+            <div class="icon">🧪</div>
+            <div>Waiting for test results…</div>
+            <div style="margin-top:6px;font-size:.8rem;">Click <strong>Run Tests</strong> to start</div>
+        </div>
+    </div>
+</div>
+
+<script>
+"use strict";
+
+// ── State ──────────────────────────────────────────────────────────────────
+let state = { suites: [], total: 0, passed: 0, failed: 0, skipped: 0, is_running: false, last_run_ms: 0 };
+let currentFilter = "all";
+let ws = null;
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connectWS() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(`${proto}//${location.host}/stream`);
+
+    ws.onopen = () => {
+        document.getElementById("ws-badge").textContent = "Live";
+        document.getElementById("ws-badge").className = "connected";
+    };
+
+    ws.onclose = () => {
+        document.getElementById("ws-badge").textContent = "Disconnected";
+        document.getElementById("ws-badge").className = "error";
+        // Reconnect after 3 s
+        setTimeout(connectWS, 3000);
+    };
+
+    ws.onerror = () => {
+        document.getElementById("ws-badge").textContent = "WS error";
+        document.getElementById("ws-badge").className = "error";
+    };
+
+    ws.onmessage = (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg.event === "heartbeat") return;
+        handleServerEvent(msg.event, msg.data);
+    };
+}
+
+// ── Event handling ─────────────────────────────────────────────────────────
+function handleServerEvent(event, data) {
+    switch (event) {
+        case "snapshot":
+            // Full state sync (sent on WebSocket connect)
+            applySnapshot(data);
+            break;
+
+        case "run:start":
+            setRunning(true);
+            state.suites = [];
+            state.total = state.passed = state.failed = state.skipped = 0;
+            renderAll();
+            break;
+
+        case "suite:done":
+            // data.suite is a SuiteResult
+            state.suites.push(data.suite);
+            // Update running counts
+            state.total   += data.suite.counts.total;
+            state.passed  += data.suite.counts.passed;
+            state.failed  += data.suite.counts.failed;
+            state.skipped += data.suite.counts.skipped;
+            updateStats();
+            appendSuiteCard(data.suite);
+            break;
+
+        case "run:done":
+            setRunning(false);
+            state.last_run_ms = data.duration_ms;
+            updateRunTime();
+            updateStatusDot();
+            break;
+    }
+}
+
+function applySnapshot(data) {
+    state = data;
+    setRunning(data.is_running);
+    renderAll();
+}
+
+// ── Fetch fallback (for initial load before WS connects) ──────────────────
+function fetchResults() {
+    fetch("/results")
+        .then(r => r.json())
+        .then(data => applySnapshot(data))
+        .catch(() => {});
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function updateStats() {
+    document.getElementById("stat-total")  .textContent = state.total   ?? "–";
+    document.getElementById("stat-passed") .textContent = state.passed  ?? "–";
+    document.getElementById("stat-failed") .textContent = state.failed  ?? "–";
+    document.getElementById("stat-skipped").textContent = state.skipped ?? "–";
+}
+
+function updateRunTime() {
+    const el = document.getElementById("run-time");
+    const ms = state.last_run_ms;
+    if (!ms) { el.textContent = ""; return; }
+    el.textContent = ms >= 1000
+        ? `Completed in ${(ms / 1000).toFixed(2)}s`
+        : `Completed in ${Math.round(ms)}ms`;
+}
+
+function updateStatusDot() {
+    const dot = document.getElementById("status-dot");
+    dot.className = state.is_running ? "running"
+                  : state.failed > 0 ? "fail"
+                  : "pass";
+}
+
+function setRunning(running) {
+    state.is_running = running;
+    document.getElementById("btn-run").disabled = running;
+    document.getElementById("btn-run").textContent = running ? "⏳ Running…" : "▶ Run Tests";
+    updateStatusDot();
+}
+
+// ── Suite card builder ─────────────────────────────────────────────────────
+function appendSuiteCard(suite) {
+    const list = document.getElementById("suite-list");
+
+    // Remove empty state if present
+    const empty = list.querySelector(".empty-state");
+    if (empty) empty.remove();
+
+    // If this suite has no tests matching current filter, still add it
+    // (collapsed) so the user can see it exists.
+    list.appendChild(buildSuiteCard(suite));
+}
+
+function buildSuiteCard(suite) {
+    const hasFail = suite.counts.failed > 0;
+    const el = document.createElement("div");
+    el.className = "suite";
+
+    // Header
+    const header = document.createElement("div");
+    header.className = "suite-header";
+    header.innerHTML = `
+        <svg class="suite-chevron" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="suite-name">${escHtml(suite.file)}</span>
+        <span class="suite-counts">
+            ${suite.counts.passed  ? `<span class="c-pass">✓ ${suite.counts.passed}</span>` : ""}
+            ${suite.counts.failed  ? `<span class="c-fail">✗ ${suite.counts.failed}</span>` : ""}
+            ${suite.counts.skipped ? `<span class="c-skip">◌ ${suite.counts.skipped}</span>` : ""}
+        </span>
+        <span class="duration-badge">${fmtMs(suite.duration_ms)}</span>
+    `;
+    header.addEventListener("click", () => {
+        el.classList.toggle("collapsed");
+    });
+
+    const body = document.createElement("div");
+    body.className = "suite-body";
+
+    if (suite.load_error) {
+        const errDiv = document.createElement("div");
+        errDiv.className = "load-error";
+        errDiv.textContent = suite.load_error;
+        body.appendChild(errDiv);
+    } else {
+        for (const node of (suite.nodes || [])) {
+            body.appendChild(buildTreeNode(node, 0));
+        }
+    }
+
+    el.appendChild(header);
+    el.appendChild(body);
+
+    // Auto-collapse passing suites when filter is "all" to reduce noise
+    if (!hasFail && currentFilter === "all") {
+        el.classList.add("collapsed");
+    }
+
+    return el;
+}
+
+function buildTreeNode(node, depth) {
+    const el = document.createElement("div");
+    el.className = "tree-node";
+
+    if (node.type === "describe") {
+        const row = document.createElement("div");
+        row.className = "describe-row";
+        row.style.paddingLeft = `${16 + depth * 16}px`;
+        row.innerHTML = `
+            <svg class="describe-chevron" viewBox="0 0 16 16" fill="none">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="describe-name">${escHtml(node.name)}</span>
+        `;
+
+        const children = document.createElement("div");
+        children.className = "describe-children";
+        for (const child of (node.children || [])) {
+            children.appendChild(buildTreeNode(child, depth + 1));
+        }
+
+        row.addEventListener("click", () => {
+            row.classList.toggle("collapsed");
+        });
+
+        el.appendChild(row);
+        el.appendChild(children);
+
+        // If this describe has only passing children and filter isn't fail,
+        // leave it open; if it has failures, ensure it's visible.
+
+    } else if (node.type === "it") {
+        // Apply filter
+        if (currentFilter !== "all" && node.status !== currentFilter) {
+            return document.createDocumentFragment(); // empty
+        }
+
+        const row = document.createElement("div");
+        row.className = `it-row ${node.status}`;
+        row.style.paddingLeft = `${32 + depth * 16}px`;
+
+        const body = document.createElement("div");
+        body.className = "it-body";
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "it-name";
+        nameEl.textContent = node.name;
+        body.appendChild(nameEl);
+
+        if (node.error) {
+            const errEl = document.createElement("div");
+            errEl.className = "it-error";
+            errEl.textContent = node.error;
+            body.appendChild(errEl);
+        }
+
+        const dot = document.createElement("div");
+        dot.className = "it-dot";
+
+        const dur = document.createElement("div");
+        dur.className = "duration-badge";
+        dur.textContent = fmtMs(node.duration_ms);
+
+        row.appendChild(dot);
+        row.appendChild(body);
+        row.appendChild(dur);
+        el.appendChild(row);
+    }
+
+    return el;
+}
+
+function renderAll() {
+    updateStats();
+    updateRunTime();
+    updateStatusDot();
+
+    const list = document.getElementById("suite-list");
+    list.innerHTML = "";
+
+    if (!state.suites || state.suites.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">🧪</div>
+                <div>No test results yet</div>
+                <div style="margin-top:6px;font-size:.8rem;">Click <strong>Run Tests</strong> to start</div>
+            </div>`;
+        return;
+    }
+
+    for (const suite of state.suites) {
+        list.appendChild(buildSuiteCard(suite));
+    }
+}
+
+// ── Expand / Collapse all ──────────────────────────────────────────────────
+document.getElementById("btn-expand-all").addEventListener("click", () => {
+    document.querySelectorAll(".suite, .describe-row").forEach(el => {
+        el.classList.remove("collapsed");
+    });
+});
+document.getElementById("btn-collapse-all").addEventListener("click", () => {
+    document.querySelectorAll(".suite").forEach(el => el.classList.add("collapsed"));
+});
+
+// ── Filter buttons ─────────────────────────────────────────────────────────
+document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.addEventListener("click", function() {
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        this.classList.add("active");
+        currentFilter = this.dataset.filter;
+        renderAll();
+    });
+});
+
+// ── Run button ─────────────────────────────────────────────────────────────
+document.getElementById("btn-run").addEventListener("click", () => {
+    fetch("/run", { method: "POST" }).catch(() => {});
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return String(s)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;");
+}
+
+function fmtMs(ms) {
+    if (ms == null || ms === 0) return "";
+    if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
+    if (ms >= 1)    return `${Math.round(ms)}ms`;
+    return `${(ms * 1000).toFixed(0)}µs`;
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────
+fetchResults();   // Immediate HTTP snapshot before WS connects
+connectWS();      // Live stream
+</script>
+</body>
+</html>
