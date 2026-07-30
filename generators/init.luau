@@ -216,9 +216,12 @@ local function String(min_len: number, max_len: number, char_strategy: Strategy<
         shrink = function(value: string): {string}
             local candidates: {string} = {}
 
-            table.insert(candidates, "")
-
             local length = #value
+            if (length == 0) then
+                return candidates
+            end
+
+            table.insert(candidates, "")
             if (length > 0) then
                 -- Remove characters from the end
                 for i = length, 1, -1 do
@@ -276,9 +279,13 @@ local function List<T>(element_strategy: Strategy<T>, min_size: number, max_size
         shrink = function(value: {T}): {{T}}
             local candidates: {{T}} = {}
 
+            local count = #value
+            if (count == 0) then
+                return candidates
+            end
+
             table.insert(candidates, {})
 
-            local count = #value
             if (count > 0) then
                 for i = 1, count do
                     local shorter: {T} = {}
@@ -437,6 +444,12 @@ local function Dictionary(
         end,
         shrink = function(value: {[any]: any}): {{[any]: any}}
             local candidates: {{[any]: any}} = {}
+
+            -- If already empty, nothing to shrink
+            local first_key = next(value)
+            if (first_key == nil) then
+                return candidates
+            end
 
             table.insert(candidates, {})
 

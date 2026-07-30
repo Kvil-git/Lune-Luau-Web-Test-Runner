@@ -265,9 +265,16 @@ local function Shrink_To_Minimal(
     body         : (args: {[string]: any}) -> (),
     initial_args : {[string]: any}
 ): {[string]: any}
-    local current = initial_args
+    local current       = initial_args
+    local max_iterations = 1000
+    local iteration      = 0
 
     while (true) do
+        iteration += 1
+        if (iteration > max_iterations) then
+            break
+        end
+
         local improved = false
 
         for key, strategy in strategies do
