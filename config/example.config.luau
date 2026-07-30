@@ -31,4 +31,13 @@ return {
     -- HTTP server port (server mode only).
     --
     PORT = 8080,
+
+    --
+    -- Property-based testing configuration (optional).
+    --
+    -- SEED     — deterministic seed for reproducibility (nil = auto-generated)
+    -- EXAMPLES — number of generated examples per given() block (default: 100)
+    --
+    -- SEED     = 42,
+    -- EXAMPLES = 200,
 }

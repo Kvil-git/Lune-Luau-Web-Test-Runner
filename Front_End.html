@@ -226,6 +226,16 @@
             word-break: break-word;
         }
 
+        .it-prop-info {
+            margin-top: 4px;
+            font-family: var(--mono);
+            font-size: .72rem;
+            color: var(--blue);
+            padding: 4px 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .duration-badge {
             font-size: .7rem;
             color: var(--text-muted);
@@ -562,6 +572,21 @@ function buildTreeNode(node, depth) {
             errEl.className = "it-error";
             errEl.textContent = node.error;
             body.appendChild(errEl);
+        }
+
+        if (node.seed) {
+            const propEl = document.createElement("div");
+            propEl.className = "it-prop-info";
+            let propText = `seed: ${node.seed}`;
+            if (node.falsifying) {
+                let parts = [];
+                for (const [k, v] of Object.entries(node.falsifying)) {
+                    parts.push(`${k} = ${JSON.stringify(v)}`);
+                }
+                propText += `  |  falsifying: { ${parts.join(", ")} }`;
+            }
+            propEl.textContent = propText;
+            body.appendChild(propEl);
         }
 
         const dot = document.createElement("div");

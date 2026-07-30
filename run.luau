@@ -42,11 +42,13 @@ local function flag_value(flag: string): string?
     return nil
 end
 
-local headless   = has_flag("--headless") or has_flag("--ci")
-local json_out   = has_flag("--json")
-local no_preproc = has_flag("--no-preprocess")
-local port_str   = flag_value("--port")
-local show_help  = has_flag("--help") or has_flag("-h")
+local headless     = has_flag("--headless") or has_flag("--ci")
+local json_out     = has_flag("--json")
+local no_preproc   = has_flag("--no-preprocess")
+local port_str     = flag_value("--port")
+local seed_str     = flag_value("--seed")
+local examples_str = flag_value("--examples")
+local show_help    = has_flag("--help") or has_flag("-h")
 
 --------------------------------------------------------------------------------
 -- Help text                                                                    --
@@ -62,6 +64,8 @@ Flags:
   --port <N>           HTTP server port override (default: 8080). Server mode only.
   --json               Write results.json after the run. Headless mode only.
   --no-preprocess      Skip the Python source-rewriting pipeline.
+  --seed <N>           Deterministic seed for property-based tests.
+  --examples <N>       Examples per given() block (default: 100).
   --help, -h           Print this message.
 
 Examples:
@@ -70,6 +74,7 @@ Examples:
   lune run test-runner/run -- --headless --json    CI mode + JSON output file
   lune run test-runner/run -- --port 9090          Server on custom port
   lune run test-runner/run -- --no-preprocess      Skip preprocessing step
+  lune run test-runner/run -- --headless --seed 42 Reproducible property tests
 ]]
 
 if show_help then
@@ -90,6 +95,24 @@ if port_str then
         process.exit(1)
     end
     Constants["PORT"] = n
+end
+
+if seed_str then
+    local n = tonumber(seed_str)
+    if not n or n < 0 then
+        warn(("run: invalid --seed value: %q  (expected a non-negative integer)"):format(seed_str))
+        process.exit(1)
+    end
+    Constants["SEED"] = n
+end
+
+if examples_str then
+    local n = tonumber(examples_str)
+    if not n or n < 1 then
+        warn(("run: invalid --examples value: %q  (expected a positive integer)"):format(examples_str))
+        process.exit(1)
+    end
+    Constants["EXAMPLES"] = n
 end
 
 --------------------------------------------------------------------------------
@@ -158,6 +181,11 @@ Test_Runner.on(function(event: string, payload: {[string]: any})
             for line in tostring(payload.error):gmatch("[^\n]+") do
                 print(("           %s"):format(line))
             end
+        end
+
+        -- Display property-test seed and falsifying example when available
+        if (payload.seed) then
+            print(("           seed: %s"):format(tostring(payload.seed)))
         end
 
     elseif event == "suite:done" then

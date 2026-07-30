@@ -128,6 +128,8 @@ return {
 | `MOCK_LIBS_FOLDER` | `"./src/Mock_Roblox_Libs"` | Project-specific mocks directory |
 | `PLACE_PATH_CANDIDATES` | `{}` | `.rbxlx` file paths for `game.luau` mock to read |
 | `PORT` | `8080` | HTTP server port |
+| `SEED` | auto-generated | Deterministic seed for property-based test reproducibility |
+| `EXAMPLES` | `100` | Number of generated examples per `given()` block |
 
 ## Mock libraries: built-in vs project-specific
 
@@ -218,6 +220,91 @@ lune run test-runner/run -- --headless
                    • Aggregates pass/fail/skip counts
                    • Prints summary; exits 0 or 1
 ```
+
+## Property-based testing
+
+The test runner supports **property-based testing** through the `given()` function, inspired by Python's Hypothesis library. Instead of writing individual examples, you define **strategies** that generate random inputs, and the runner automatically finds minimal failing examples.
+
+### Basic usage
+
+```luau
+it("addition is commutative", function()
+    given({
+        a = g.integer(-100, 100),
+        b = g.integer(-100, 100),
+    }, function(args)
+        expect(args.a + args.b).to.equal(args.b + args.a)
+    end)
+end)
+```
+
+This generates 100 random pairs of integers and tests the property. If any example fails, the runner **shrinks** the input to find the minimal failing case and reports it with the seed for reproduction.
+
+### Strategy reference
+
+| Factory | Description |
+|---|---|
+| `g.integer(min, max)` | Uniform random integer in `[min, max]` |
+| `g.float(min, max)` | Uniform random float in `[min, max]` |
+| `g.boolean()` | `true` or `false` |
+| `g.character()` | Single printable ASCII character |
+| `g.string(min_len, max_len, char_strat?)` | String of random characters |
+| `g.list(strat, min_size, max_size)` | List of values from a sub-strategy |
+| `g.sampled({a, b, ...})` | Pick uniformly from a fixed set |
+| `g.tuple({s1, s2, ...})` | Fixed-size tuple from multiple strategies |
+| `g.dictionary(key_s, val_s, max_pairs?)` | Table with generated keys/values |
+
+### Combinators
+
+| Factory | Description |
+|---|---|
+| `g.map(strat, fn)` | Transform generated values with a function |
+| `g.filter(strat, pred, max_attempts?)` | Keep only values matching a predicate |
+| `g.one_of({s1, s2, ...})` | Uniform choice among strategies |
+| `g.frequency({{weight, s}, ...})` | Weighted choice among strategies |
+
+### Shrinking
+
+When a property test fails, the runner automatically **shrinks** the input toward simpler values:
+- **Integers** → 0, ±1, then halve toward 0
+- **Strings** → empty string, then shorter strings
+- **Lists** → empty list, then remove elements one at a time
+- **Booleans** → shrink toward `false`
+- **Dictionaries** → empty table, then remove keys
+
+Shrinking continues until stable — no simpler failing input can be found. The final result is the **minimal failing example**.
+
+### Reproducing failures
+
+When a property test fails, the runner prints the seed:
+
+```
+FAIL  addition is commutative
+  Falsifying example: { a = 7, b = -7 }
+  (seed: 483192)
+```
+
+Re-run with the same seed to reproduce:
+
+```bash
+lune run test-runner/run -- --headless --seed 483192
+```
+
+You can also set a fixed seed in your config:
+
+```luau
+-- test-runner.config.luau
+return {
+    SEED     = 42,
+    EXAMPLES = 200,
+}
+```
+
+### How it works
+
+1. **Generate**: Each example seeds `math.random` with a deterministic value derived from the test seed and example index, then calls each strategy's `generate()` to produce inputs.
+2. **Test**: Runs the test body with the generated inputs.
+3. **Shrink**: On failure, tries each strategy's `shrink()` candidates for each field. If a candidate still fails, recurses on it. Continues until no field can be shrunk further.
 
 ## Error handling
 

@@ -38,6 +38,8 @@ type CollectionNode = {
     status      : "pass" | "fail" | "skip",
     error       : string?,
     duration_ms : number,
+    seed        : number?,
+    falsifying  : {[string]: any}?,
 }
 
 --------------------------------------------------------------------------------
@@ -51,6 +53,8 @@ export type TestNode = {
     children    : {TestNode}?,
     error       : string?,
     duration_ms : number,
+    seed        : number?,
+    falsifying  : {[string]: any}?,
 }
 
 --------------------------------------------------------------------------------
@@ -232,14 +236,113 @@ local function make_expect(value: any): Expectation
     return chain
 end
 
+------------------------------------------------------------------------------
+-- Property-based testing: shrink engine                                      --
+------------------------------------------------------------------------------
+
+export type Strategy<T> = {
+    generate: () -> T,
+    shrink: (value: T) -> {T},
+}
+
+--
+-- Finds the minimal failing input by repeatedly shrinking each field.
+--
+-- For each field, tries the strategy's shrink candidates. If a candidate
+-- still causes the test body to fail, recurses on that candidate. Continues
+-- until no field can be shrunk further.
+--
+-- Parameters:
+--     • strategies ({[string]: Strategy<any>}) - Named strategies for each field
+--     • body       (({[string]: any}) -> ())    - Test function to run with candidate inputs
+--     • initial_args ({[string]: any})           - The first failing input
+--
+-- Returns:
+--     {[string]: any} - The minimal failing input found
+--
+local function Shrink_To_Minimal(
+    strategies   : {[string]: Strategy<any>},
+    body         : (args: {[string]: any}) -> (),
+    initial_args : {[string]: any}
+): {[string]: any}
+    local current = initial_args
+
+    while (true) do
+        local improved = false
+
+        for key, strategy in strategies do
+            local value      = current[key]
+            local candidates = strategy.shrink(value)
+
+            for _, candidate in ipairs(candidates) do
+                local new_args: {[string]: any} = {}
+
+                for k, v in current do
+                    new_args[k] = v
+                end
+
+                new_args[key] = candidate
+
+                local ok, _ = pcall(body, new_args)
+                if (not ok) then
+                    current  = new_args
+                    improved = true
+                    break
+                end
+            end
+
+            if (improved) then
+                break
+            end
+        end
+
+        if (not improved) then
+            break
+        end
+    end
+
+    return current
+end
+
+--
+-- Formats a falsifying example into a readable error string.
+--
+-- Parameters:
+--     • shrunk    ({[string]: any}) - The minimal failing example
+--     • seed      (number) - The seed used for generation
+--     • orig_err (string) - The original error message from the test body
+--
+-- Returns:
+--     string
+--
+local function Format_Failure(shrunk: {[string]: any}, seed: number, orig_err: string): string
+    local parts: {string} = {}
+
+    for key, value in shrunk do
+        local value_str = tostring(value)
+        table.insert(parts, key .. " = " .. value_str)
+    end
+
+    local falsifying_str = "{ " .. table.concat(parts, ", ") .. " }"
+
+    return ("Falsifying example: %s\n(seed: %d)\nOriginal error: %s")
+        :format(falsifying_str, seed, orig_err)
+end
+
 --------------------------------------------------------------------------------
 -- Factory                                                                      --
 --------------------------------------------------------------------------------
 
 local TestEZ_Factory = {}
 
-function TestEZ_Factory.new()
+function TestEZ_Factory.new(seed: number?, examples: number?)
     local self = {}
+
+    self.base_seed       = seed or math.floor(os.time() * 10000 + os.clock() * 10000) % 2147483647
+    self.examples_count  = examples or 100
+    self.given_counter   = 0
+    self.last_seed       = nil
+    self.last_falsifying = nil
 
     -- Root-level collection list
     local root_children: {CollectionNode} = {}
@@ -380,6 +483,54 @@ function TestEZ_Factory.new()
     self.expect = make_expect
 
     ----------------------------------------------------------------------------
+    -- Property-based testing: given()                                           --
+    ----------------------------------------------------------------------------
+
+    --
+    -- Generates random examples using the provided strategies and runs the test
+    -- body with each. On failure, shrinks the input to find the minimal failing
+    -- example and reports it with the seed for reproduction.
+    --
+    -- Usage:
+    --   given({
+    --       a = g.integer(1, 100),
+    --       b = g.integer(1, 100),
+    --   }, function(args)
+    --       expect(args.a + args.b).to.be.above(args.a)
+    --   end)
+    --
+    -- Parameters:
+    --     • strategies ({[string]: Strategy<any>}) - Named strategies keyed by parameter name
+    --     • body (({[string]: any}) -> ()) - Test function receiving generated args
+    --
+    function self.given(strategies: {[string]: Strategy<any>}, body: (args: {[string]: any}) -> ())
+        self.given_counter += 1
+
+        local given_seed = self.base_seed + self.given_counter
+
+        for i = 1, self.examples_count do
+            math.randomseed(given_seed + i)
+
+            local args: {[string]: any} = {}
+
+            for key, strategy in strategies do
+                args[key] = strategy.generate()
+            end
+
+            local ok, err = pcall(body, args)
+            if (not ok) then
+                local shrunk = Shrink_To_Minimal(strategies, body, args)
+
+                self.last_seed       = given_seed
+                self.last_falsifying = shrunk
+
+                local message = Format_Failure(shrunk, given_seed, tostring(err))
+                error(message)
+            end
+        end
+    end
+
+    ----------------------------------------------------------------------------
     -- Phase 2: Execution                                                      --
     ----------------------------------------------------------------------------
 
@@ -413,6 +564,10 @@ function TestEZ_Factory.new()
         end
 
         if node.type == "it" then
+            -- Clear property-test state before running
+            self.last_seed       = nil
+            self.last_falsifying = nil
+
             -- Compose beforeEach chain
             for _, h in ipairs(inh_before) do
                 local ok, err = pcall(h)
@@ -429,6 +584,12 @@ function TestEZ_Factory.new()
                 if not ok then
                     node.status = "fail"
                     node.error  = tostring(err)
+
+                    -- Propagate property-test data to the node if set
+                    if (self.last_seed) then
+                        node.seed       = self.last_seed
+                        node.falsifying = self.last_falsifying
+                    end
                 end
             end
 
@@ -505,6 +666,8 @@ function TestEZ_Factory.new()
             status      = node.status,
             error       = node.error,
             duration_ms = node.duration_ms,
+            seed        = node.seed,
+            falsifying  = node.falsifying,
             children    = nil,
         }
         if node.children then

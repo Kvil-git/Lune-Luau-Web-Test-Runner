@@ -24,6 +24,8 @@ local fs             = require("@lune/fs")
 local luau           = require("@lune/luau")
 local task_lib       = require("@lune/task")
 local TestEZ_Factory = require("./testez_compat")
+local Generators     = require("./generators")
+local Constants      = require("./Constants")
 
 export type SandboxResult = {
     ok    : boolean,
@@ -164,7 +166,20 @@ function Sandbox.run(
     end
 
     local base_dir = dirname(path)
-    local testez   = TestEZ_Factory.new()
+
+    -- Determine seed for property-based tests
+    local configured_seed = Constants["SEED"]
+    local seed_value: number
+
+    if (configured_seed ~= nil) then
+        seed_value = configured_seed :: number
+    else
+        seed_value = math.floor(os.time() * 10000 + os.clock() * 10000) % 2147483647
+    end
+
+    local examples_value = Constants["EXAMPLES"] or 100
+
+    local testez = TestEZ_Factory.new(seed_value, examples_value)
     if on_test_done then testez.set_on_test_done(on_test_done) end
 
     local env: {[string]: any} = {
@@ -176,6 +191,9 @@ function Sandbox.run(
         beforeEach   = testez.beforeEach, afterEach  = testez.afterEach,
         beforeAll    = testez.beforeAll,  afterAll   = testez.afterAll,
         expect       = testez.expect,
+        -- Property-based testing globals
+        given        = testez.given,
+        g            = Generators,
         -- Standard globals
         assert       = assert,   error  = error,   pcall  = pcall,
         xpcall       = xpcall,   type   = type,    typeof = typeof,

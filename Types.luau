@@ -26,6 +26,13 @@ export type Test_Module = {
     func : () -> string,
 }
 
+-- Property-based testing strategy: generates random values and shrinks them
+-- on test failure toward a minimal failing example.
+export type Strategy<T> = {
+    generate: () -> T,
+    shrink: (value: T) -> {T},
+}
+
 -- Tree node produced by the TestEZ compat layer.
 -- Matches testez_compat.TestNode exactly.
 export type TestNode = {
@@ -35,6 +42,8 @@ export type TestNode = {
     children    : {TestNode}?,
     error       : string?,
     duration_ms : number,
+    seed        : number?,        -- seed for reproduction of property-based test
+    falsifying  : {[string]: any}?, -- shrunk counterexample from property-based test
 }
 
 -- Aggregated counts for one level of the tree

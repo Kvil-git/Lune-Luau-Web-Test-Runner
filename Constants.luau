@@ -19,6 +19,8 @@ local DEFAULTS = {
     MOCK_LIBS_FOLDER = "./src/Mock_Roblox_Libs",
     PORT             = 8080,
     SPEC_PATTERN     = "**/*.spec.luau",
+    SEED             = nil,
+    EXAMPLES         = 100,
 }
 
 --
@@ -70,6 +72,8 @@ local CONSTANTS = {
     ["FRONTEND_HTML"]    = fs.readFile(submodule_path("Front_End.html")),
     ["PORT"]             = PORT_VALUE,
     ["SPEC_PATTERN"]     = get_config("SPEC_PATTERN", DEFAULTS.SPEC_PATTERN),
+    ["SEED"]             = get_config("SEED", DEFAULTS.SEED),
+    ["EXAMPLES"]         = get_config("EXAMPLES", DEFAULTS.EXAMPLES),
 }
 --
 -- RETURN VALUE

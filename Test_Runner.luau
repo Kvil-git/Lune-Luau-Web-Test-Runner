@@ -203,11 +203,13 @@ function Test_Runner.Run_Tests()
         -- Per-test event forwarding
         local function on_test_done(node: any)
             emit("test:done", {
-                suite      = file_name,
-                name       = node.name,
-                status     = node.status,
-                error      = node.error,
+                suite       = file_name,
+                name        = node.name,
+                status      = node.status,
+                error       = node.error,
                 duration_ms = node.duration_ms,
+                seed        = node.seed,
+                falsifying  = node.falsifying,
             })
         end
 
