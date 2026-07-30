@@ -24,9 +24,9 @@ local function resolve_place_path(): string
     -- pcall is used because the config file may not exist.
     --
     local config_ok, config_result = pcall(require, "../test-runner.config")
-    if config_ok and (type(config_result) == "table") then
+    if (config_ok and (type(config_result) == "table")) then
         local candidates = config_result.PLACE_PATH_CANDIDATES
-        if (type(candidates) == "table") and (#candidates > 0) then
+        if ((type(candidates) == "table") and (#candidates > 0)) then
             for _, candidate in ipairs(candidates :: {string}) do
                 local ok, is_file = pcall(function()
                     return fs.isFile(candidate)

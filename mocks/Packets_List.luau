@@ -1,12 +1,17 @@
 --!strict
 --
--- Mock Packets_List for headless test environment.
--- Replaces the real Packet module (which depends on Roblox RemoteEvent/buffer)
--- with stubs that record calls for test assertions.
+-- REQUIRES
+--
+-- (none - pure mock, no dependencies)
+--
+-- LOCAL FUNCTIONS
 --
 
 --
--- HELPER: create a stub packet
+-- make_packet_stub
+--
+-- Creates a stub packet table with Fire, FireClient, and event
+-- Connect methods that record calls for test assertions.
 --
 local function make_packet_stub(name: string)
     local calls: {any} = {}
@@ -14,7 +19,7 @@ local function make_packet_stub(name: string)
     return {
         Name = name,
         Type = "Packet",
-        Id = 0,
+        Id   = 0,
 
         Fire = function(_self: any, ...: any)
             table.insert(calls, { method = "Fire", args = table.pack(...) })
@@ -35,7 +40,9 @@ local function make_packet_stub(name: string)
             end,
         },
 
+        --
         -- Test helper: retrieve and clear recorded calls
+        --
         _get_calls = function(): {any}
             local snapshot = calls
             return snapshot
@@ -47,8 +54,7 @@ local function make_packet_stub(name: string)
 end
 
 --
--- Build the Packets_List table with all packet names used by the codebase.
--- Additional names are auto-created via __index on first access.
+-- VARIABLES
 --
 local packets: {[string]: any} = {}
 
@@ -117,13 +123,16 @@ packets["Build_Health_Changed"] = make_packet_stub("Build_Health_Changed")
 -- Attack
 packets["Attack_Preparation"] = make_packet_stub("Attack_Preparation")
 packets["Attack_Firing"]      = make_packet_stub("Attack_Firing")
+--
+-- MODULE DEFINITION
+--
 
 --
--- Return a proxy that auto-creates unknown packet names on first access
+-- Return a proxy that auto-creates unknown packet names on first access.
 --
 local Packets_List = setmetatable({}, {
     __index = function(_, key: string)
-        if packets[key] == nil then
+        if (packets[key] == nil) then
             packets[key] = make_packet_stub(key)
         end
         return packets[key]
@@ -132,7 +141,6 @@ local Packets_List = setmetatable({}, {
         packets[key] = value
     end,
 })
-
 --
 -- RETURN VALUE
 --

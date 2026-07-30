@@ -1,18 +1,8 @@
 --!strict
---[[
-Documentation:
-https://create.roblox.com/docs/reference/engine/datatypes/BrickColor
-
-Extra Info:
-This mock supports the standard BrickColor constructors and a small palette of named colors.
-Unknown numeric BrickColors are preserved so round-tripping through .Number still works.
---]]
-
 --
 -- REQUIRES
 --
 local Color3 = require("./Color3")
-
 --
 -- LOCAL TYPES
 --
@@ -26,47 +16,44 @@ export type Color3Like = {
 export type BrickColor = {
     __type: "BrickColor",
 
-    Name: string,
+    Name:   string,
     Number: number,
-    Color: Color3Like,
+    Color:  Color3Like,
 
-    new: (value: number | string | Color3Like) -> BrickColor,
-    Random: () -> BrickColor,
-    Blue: () -> BrickColor,
-    Yellow: () -> BrickColor,
-    Red: () -> BrickColor,
-    Green: () -> BrickColor,
-    Black: () -> BrickColor,
-    White: () -> BrickColor,
-    Gray: () -> BrickColor,
-    Orange: () -> BrickColor,
-    Purple: () -> BrickColor,
-    Pink: () -> BrickColor,
+    new:    (value: number | string | Color3Like) -> BrickColor,
+    Random: ()                                     -> BrickColor,
+    Blue:   ()                                     -> BrickColor,
+    Yellow: ()                                     -> BrickColor,
+    Red:    ()                                     -> BrickColor,
+    Green:  ()                                     -> BrickColor,
+    Black:  ()                                     -> BrickColor,
+    White:  ()                                     -> BrickColor,
+    Gray:   ()                                     -> BrickColor,
+    Orange: ()                                     -> BrickColor,
+    Purple: ()                                     -> BrickColor,
+    Pink:   ()                                     -> BrickColor,
 }
 
 type BrickColorMetatable = {
-    __index: BrickColor,
-    __eq: (a: BrickColor, b: BrickColor) -> boolean,
-    __tostring: (self: BrickColor) -> string,
+    __index:    BrickColor,
+    __eq:       (a: BrickColor, b: BrickColor) -> boolean,
+    __tostring: (self: BrickColor)             -> string,
 }
 
 type BrickColorEntry = {
-    Name: string,
+    Name:   string,
     Number: number,
-    Color: Color3Like,
+    Color:  Color3Like,
 }
-
-local BrickColor: BrickColor = {} :: any
-BrickColor.__type = "BrickColor"
-
-local mt = {
-    __index = BrickColor,
-} :: any
-
+--
+-- VARIABLES
+--
 local paletteByNumber: {[number]: BrickColorEntry} = {}
 local paletteByKey: {[string]: BrickColorEntry} = {}
 local customByNumber: {[number]: BrickColorEntry} = {}
-
+--
+-- LOCAL FUNCTIONS
+--
 local function keyFromName(name: string): string
     return name:lower():gsub("[^%w]", "")
 end
@@ -75,29 +62,31 @@ local function colorDistanceSquared(a: Color3Like, b: Color3Like): number
     local dr = a.R - b.R
     local dg = a.G - b.G
     local db = a.B - b.B
-    return dr * dr + dg * dg + db * db
+    return ((dr * dr) + (dg * dg) + (db * db))
 end
 
 local function makeEntry(number: number, name: string, color: Color3Like): BrickColorEntry
     return {
-        Name = name,
+        Name   = name,
         Number = number,
-        Color = color,
+        Color  = color,
     }
 end
 
 local function registerPaletteEntry(number: number, name: string, r: number, g: number, b: number): BrickColorEntry
     local entry = makeEntry(number, name, Color3.fromRGB(r, g, b))
-    paletteByNumber[number] = entry
-    paletteByKey[keyFromName(name)] = entry
+
+    paletteByNumber[number]             = entry
+    paletteByKey[keyFromName(name)]     = entry
+
     return entry
 end
 
 local function createBrickColor(entry: BrickColorEntry): BrickColor
     local self: any = {
-        Name = entry.Name,
+        Name   = entry.Name,
         Number = entry.Number,
-        Color = entry.Color,
+        Color  = entry.Color,
     }
     setmetatable(self, mt)
     return (self :: any) :: BrickColor
@@ -108,77 +97,110 @@ local function normalizeNumber(value: number): number
 end
 
 local function isColor3Like(value: any): boolean
-    return typeof(value) == "table" and value.__type == "Color3" and type(value.R) == "number" and type(value.G) == "number" and type(value.B) == "number"
+    local isTable   = (typeof(value) == "table")
+    local hasType   = (value.__type == "Color3")
+    local hasR      = (type(value.R) == "number")
+    local hasG      = (type(value.G) == "number")
+    local hasB      = (type(value.B) == "number")
+
+    return (isTable and hasType and hasR and hasG and hasB)
 end
 
+--
+-- findClosestPaletteEntry
+--
+-- Finds the palette entry whose color most closely matches the
+-- given Color3, using squared Euclidean distance.
+--
 local function findClosestPaletteEntry(color: Color3Like): BrickColorEntry
     local bestEntry: BrickColorEntry? = nil
-    local bestDistance = math.huge
+    local bestDistance                 = math.huge
 
     for _, entry in pairs(paletteByNumber) do
         local distance = colorDistanceSquared(color, entry.Color)
-        if distance < bestDistance then
+
+        if (distance < bestDistance) then
             bestDistance = distance
-            bestEntry = entry
+            bestEntry    = entry
         end
     end
 
-    if bestEntry then
+    if (bestEntry ~= nil) then
         return bestEntry
     end
 
     return paletteByNumber[1] or makeEntry(1, "BrickColor #1", Color3.fromRGB(255, 255, 255))
 end
 
+--
+-- getOrCreateNumericEntry
+--
+-- Returns the palette entry for a given BrickColor number.
+-- If the number is not in the standard palette, a synthetic
+-- entry is created and cached so round-tripping preserves it.
+--
 local function getOrCreateNumericEntry(number: number): BrickColorEntry
-    local normalized = normalizeNumber(number)
+    local normalized   = normalizeNumber(number)
     local paletteEntry = paletteByNumber[normalized]
-    if paletteEntry then
+
+    if (paletteEntry ~= nil) then
         return paletteEntry
     end
 
     local cached = customByNumber[normalized]
-    if cached then
+    if (cached ~= nil) then
         return cached
     end
 
-    local red = (normalized * 53) % 256
-    local green = (normalized * 97 + 64) % 256
-    local blue = (normalized * 193 + 128) % 256
+    local red   = (normalized * 53)      % 256
+    local green = ((normalized * 97) + 64) % 256
+    local blue  = ((normalized * 193) + 128) % 256
+
     local entry = makeEntry(
         normalized,
         ("BrickColor #%d"):format(normalized),
         Color3.fromRGB(red, green, blue)
     )
+
     customByNumber[normalized] = entry
+
     return entry
 end
 
+--
+-- fromValue
+--
+-- Converts a number, string, or Color3-like value into a BrickColor.
+--
 local function fromValue(value: number | string | Color3Like): BrickColor
     local valueType = typeof(value)
 
-    if valueType == "number" then
+    if (valueType == "number") then
         return createBrickColor(getOrCreateNumericEntry(value :: number))
-    elseif valueType == "string" then
-        local name = value :: string
+    end
+
+    if (valueType == "string") then
+        local name    = value :: string
         local numeric = tonumber(name)
-        if numeric ~= nil then
+
+        if (numeric ~= nil) then
             return createBrickColor(getOrCreateNumericEntry(numeric))
         end
 
         local entry = paletteByKey[keyFromName(name)]
-        if entry then
+        if (entry ~= nil) then
             return createBrickColor(entry)
         end
 
         error(("Unknown BrickColor name '%s'"):format(name))
-    elseif isColor3Like(value) then
+    end
+
+    if (isColor3Like(value)) then
         return createBrickColor(findClosestPaletteEntry(value :: Color3Like))
     end
 
     error("BrickColor.new expects a number, string, or Color3")
 end
-
 --
 -- PALETTE
 --
@@ -218,6 +240,15 @@ registerPaletteEntry(125, "Royal blue",         65,  105, 225)
 registerPaletteEntry(126, "Bright orange",      218, 133, 65)
 registerPaletteEntry(127, "Deep orange",        255, 171, 0)
 registerPaletteEntry(128, "Deep blue",          0,   85,   191)
+--
+-- MODULE DEFINITION
+--
+local BrickColor: BrickColor = {} :: any
+BrickColor.__type = "BrickColor"
+
+local mt = {
+    __index = BrickColor,
+} :: any
 
 function BrickColor.new(value: number | string | Color3Like): BrickColor
     return fromValue(value)
@@ -225,15 +256,18 @@ end
 
 function BrickColor.Random(): BrickColor
     local entries = {}
+
     for _, entry in pairs(paletteByNumber) do
         table.insert(entries, entry)
     end
 
-    if #entries == 0 then
+    local entries_count = #entries
+
+    if (entries_count == 0) then
         return BrickColor.new(1)
     end
 
-    return createBrickColor(entries[math.random(1, #entries)])
+    return createBrickColor(entries[math.random(1, entries_count)])
 end
 
 function BrickColor.Blue(): BrickColor
@@ -277,7 +311,7 @@ function BrickColor.Pink(): BrickColor
 end
 
 function mt.__eq(a: BrickColor, b: BrickColor): boolean
-    return a.Number == b.Number
+    return (a.Number == b.Number)
 end
 
 function mt.__tostring(self: BrickColor): string

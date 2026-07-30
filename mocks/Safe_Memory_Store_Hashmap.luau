@@ -1,13 +1,17 @@
 --!strict
 --
--- Mock Safe_Memory_Store_Hashmap for test environment.
--- Records all calls for test assertions.
+-- REQUIRES
 --
-
+-- (none - pure mock, no dependencies)
+--
+-- VARIABLES
+--
 local storage: {[string]: any} = {}
 local get_calls: { {hashmap: any, key: string} } = {}
 local set_calls: { {hashmap: any, key: string, value: any, expiration: number} } = {}
-
+--
+-- MODULE DEFINITION
+--
 local Safe_Memory_Store_Hashmap = {}
 
 function Safe_Memory_Store_Hashmap.Set_Async(hashmap: any, key: string, value: any, expiration: number): ()
@@ -15,12 +19,20 @@ function Safe_Memory_Store_Hashmap.Set_Async(hashmap: any, key: string, value: a
     table.insert(set_calls, { hashmap = hashmap, key = key, value = value, expiration = expiration })
 end
 
+--
+-- Get_Yielding
+--
+-- Retrieves a value from the mock store and records the call.
+-- Returns (true, value) if found, (false, error_message) otherwise.
+--
 function Safe_Memory_Store_Hashmap.Get_Yielding(hashmap: any, key: string): (boolean, any)
     table.insert(get_calls, { hashmap = hashmap, key = key })
+
     local value = storage[key]
-    if value ~= nil then
+    if (value ~= nil) then
         return true, value
     end
+
     return false, "Key not found: " .. key
 end
 
@@ -44,5 +56,7 @@ end
 function Safe_Memory_Store_Hashmap._clear_storage(): ()
     storage = {}
 end
-
+--
+-- RETURN VALUE
+--
 return Safe_Memory_Store_Hashmap

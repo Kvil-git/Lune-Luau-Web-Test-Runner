@@ -1,12 +1,8 @@
 --!strict
---[[
-Documentation:
-https://create.roblox.com/docs/reference/engine/datatypes/Color3
-
-Extra Info:
-This mock supports the standard Color3 constructors and basic color conversion helpers.
---]]
-
+--
+-- REQUIRES
+--
+-- (none - pure mock, no dependencies)
 --
 -- LOCAL TYPES
 --
@@ -17,28 +13,23 @@ export type Color3 = {
     G: number,
     B: number,
 
-    new: (r: number?, g: number?, b: number?) -> Color3,
-    fromRGB: (r: number, g: number, b: number) -> Color3,
-    fromHSV: (h: number, s: number, v: number) -> Color3,
-    fromHex: (hexCode: string) -> Color3,
-    ToHSV: (self: Color3) -> (number, number, number),
-    toHSV: (self: Color3) -> (number, number, number),
-    ToHex: (self: Color3) -> string,
+    new:      (r: number?, g: number?, b: number?)                 -> Color3,
+    fromRGB:  (r: number,  g: number,  b: number)                  -> Color3,
+    fromHSV:  (h: number,  s: number,  v: number)                  -> Color3,
+    fromHex:  (hexCode: string)                                    -> Color3,
+    ToHSV:    (self: Color3)                                       -> (number, number, number),
+    toHSV:    (self: Color3)                                       -> (number, number, number),
+    ToHex:    (self: Color3)                                       -> string,
 }
 
 type Color3Metatable = {
-    __index: Color3,
-    __eq: (a: Color3, b: Color3) -> boolean,
-    __tostring: (self: Color3) -> string,
+    __index:    Color3,
+    __eq:       (a: Color3, b: Color3) -> boolean,
+    __tostring: (self: Color3)         -> string,
 }
-
-local Color3: Color3 = {} :: any
-Color3.__type = "Color3"
-
-local mt = {
-    __index = Color3,
-} :: any
-
+--
+-- LOCAL FUNCTIONS
+--
 local function clamp01(value: number): number
     return math.clamp(value, 0, 1)
 end
@@ -50,28 +41,29 @@ end
 local function rgbToHsv(r: number, g: number, b: number): (number, number, number)
     local maxValue = math.max(r, g, b)
     local minValue = math.min(r, g, b)
-    local delta = maxValue - minValue
+    local delta    = maxValue - minValue
 
     local h = 0
     local s = 0
     local v = maxValue
 
-    if maxValue > 0 then
+    if (maxValue > 0) then
         s = delta / maxValue
     end
 
-    if delta > 0 then
-        if maxValue == r then
+    if (delta > 0) then
+        if (maxValue == r) then
             h = ((g - b) / delta) % 6
-        elseif maxValue == g then
+        elseif (maxValue == g) then
             h = ((b - r) / delta) + 2
         else
             h = ((r - g) / delta) + 4
         end
 
-        h /= 6
-        if h < 0 then
-            h += 1
+        h = h / 6
+
+        if (h < 0) then
+            h = h + 1
         end
     end
 
@@ -79,23 +71,23 @@ local function rgbToHsv(r: number, g: number, b: number): (number, number, numbe
 end
 
 local function hsvToRgb(h: number, s: number, v: number): (number, number, number)
-    local hue = (h % 1) * 6
-    local sector = math.floor(hue)
+    local hue      = (h % 1) * 6
+    local sector   = math.floor(hue)
     local fraction = hue - sector
 
     local p = v * (1 - s)
     local q = v * (1 - fraction * s)
     local t = v * (1 - (1 - fraction) * s)
 
-    if sector == 0 then
+    if     (sector == 0) then
         return v, t, p
-    elseif sector == 1 then
+    elseif (sector == 1) then
         return q, v, p
-    elseif sector == 2 then
+    elseif (sector == 2) then
         return p, v, t
-    elseif sector == 3 then
+    elseif (sector == 3) then
         return p, q, v
-    elseif sector == 4 then
+    elseif (sector == 4) then
         return t, p, v
     else
         return v, p, q
@@ -111,27 +103,62 @@ local function createRawColor3(r: number, g: number, b: number): Color3
     setmetatable(self, mt)
     return self :: Color3
 end
+--
+-- MODULE DEFINITION
+--
+local Color3: Color3 = {} :: any
+Color3.__type = "Color3"
+
+local mt = {
+    __index = Color3,
+} :: any
 
 function Color3.new(r: number?, g: number?, b: number?): Color3
-    return createRawColor3(clamp01(r or 0), clamp01(g or 0), clamp01(b or 0))
+    local red   = r
+    local green = g
+    local blue  = b
+
+    if (red   == nil) then red   = 0 end
+    if (green == nil) then green = 0 end
+    if (blue  == nil) then blue  = 0 end
+
+    return createRawColor3(clamp01(red), clamp01(green), clamp01(blue))
 end
 
 function Color3.fromRGB(r: number, g: number, b: number): Color3
-    return Color3.new((r or 0) / 255, (g or 0) / 255, (b or 0) / 255)
+    local red   = r
+    local green = g
+    local blue  = b
+
+    if (red   == nil) then red   = 0 end
+    if (green == nil) then green = 0 end
+    if (blue  == nil) then blue  = 0 end
+
+    return Color3.new(red / 255, green / 255, blue / 255)
 end
 
 function Color3.fromHSV(h: number, s: number, v: number): Color3
-    local red, green, blue = hsvToRgb(clamp01(h or 0), clamp01(s or 0), clamp01(v or 0))
+    local hue        = h
+    local saturation = s
+    local value      = v
+
+    if (hue        == nil) then hue        = 0 end
+    if (saturation == nil) then saturation = 0 end
+    if (value      == nil) then value      = 0 end
+
+    local red, green, blue = hsvToRgb(clamp01(hue), clamp01(saturation), clamp01(value))
+
     return Color3.new(red, green, blue)
 end
 
 function Color3.fromHex(hexCode: string): Color3
     local hex = hexCode:gsub("^#", "")
-    if #hex == 3 then
+
+    if (#hex == 3) then
         hex = hex:sub(1, 1):rep(2) .. hex:sub(2, 2):rep(2) .. hex:sub(3, 3):rep(2)
     end
 
-    if #hex ~= 6 then
+    if (#hex ~= 6) then
         error(("Invalid hex color '%s'"):format(hexCode))
     end
 
@@ -151,11 +178,14 @@ function Color3:toHSV(): (number, number, number)
 end
 
 function Color3:ToHex(): string
-    return string.format("%02X%02X%02X", math.round(self.R * 255), math.round(self.G * 255), math.round(self.B * 255))
+    local r = math.round(self.R * 255)
+    local g = math.round(self.G * 255)
+    local b = math.round(self.B * 255)
+    return string.format("%02X%02X%02X", r, g, b)
 end
 
 function mt.__eq(a: Color3, b: Color3): boolean
-    return a.R == b.R and a.G == b.G and a.B == b.B
+    return ((a.R == b.R) and (a.G == b.G) and (a.B == b.B))
 end
 
 function mt.__tostring(self: Color3): string

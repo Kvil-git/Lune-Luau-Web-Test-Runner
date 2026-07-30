@@ -2,11 +2,11 @@
 --
 -- REQUIRES
 --
--- String requires
 local Types       = require("./Types")
 local Constants   = require("./Constants")
 local Test_Loader = require("./Test_Loader")
 local Sandbox     = require("./sandbox")
+
 --
 -- LOCAL TYPES
 --
@@ -18,62 +18,69 @@ type Counts       = Types.Counts
 --
 -- LOCAL FUNCTIONS
 --
+
 --
 -- Recursively count pass/fail/skip from a TestNode tree.
 --
 -- Parameters:
---     • nodes ({TestNode}) - The test nodes to count.
+--     nodes ({TestNode}) - The test nodes to count.
 --
 -- Returns:
 --     Counts - The aggregated counts.
 --
 local function Count_Nodes(nodes: {TestNode}): Counts
-    local c: Counts = { total = 0, passed = 0, failed = 0, skipped = 0 }
+    local counts: Counts = { total = 0, passed = 0, failed = 0, skipped = 0 }
+
     for _, node in ipairs(nodes) do
-        if node.type == "it" then
-            c.total += 1
-            if node.status == "pass" then
-                c.passed += 1
-            elseif node.status == "fail" then
-                c.failed += 1
-            elseif node.status == "skip" then
-                c.skipped += 1
+        if (node.type == "it") then
+            counts.total += 1
+
+            if (node.status == "pass") then
+                counts.passed += 1
+            elseif (node.status == "fail") then
+                counts.failed += 1
+            elseif (node.status == "skip") then
+                counts.skipped += 1
             end
-        elseif node.type == "describe" and node.children then
-            local sub = Count_Nodes(node.children :: {TestNode})
-            c.total   += sub.total
-            c.passed  += sub.passed
-            c.failed  += sub.failed
-            c.skipped += sub.skipped
+        elseif (node.type == "describe") and (node.children ~= nil) then
+            local sub_counts = Count_Nodes(node.children :: {TestNode})
+
+            counts.total   += sub_counts.total
+            counts.passed  += sub_counts.passed
+            counts.failed  += sub_counts.failed
+            counts.skipped += sub_counts.skipped
         end
     end
-    return c
+
+    return counts
 end
 
 --
 -- Sum duration_ms across a tree of nodes (descend into describe children).
 --
 -- Parameters:
---     • nodes ({TestNode}) - The test nodes.
+--     nodes ({TestNode}) - The test nodes.
 --
 -- Returns:
 --     number - Total duration in milliseconds.
 --
 local function Total_Duration(nodes: {TestNode}): number
-    local ms = 0
+    local total_ms: number = 0
+
     for _, node in ipairs(nodes) do
-        ms += node.duration_ms
-        if node.children then
-            ms += Total_Duration(node.children :: {TestNode})
+        total_ms += node.duration_ms
+
+        if (node.children ~= nil) then
+            total_ms += Total_Duration(node.children :: {TestNode})
         end
     end
-    return ms
+
+    return total_ms
 end
 
 --
 -- VARIABLES
 --
-
 local results: Test_Results = {
     total       = 0,
     passed      = 0,
@@ -90,17 +97,14 @@ local Test_Runner = {
 }
 
 --
--- MODULE DEFINITION (Event system)
-
--- Subscribers can listen to events emitted during a test run.
--- event types:
+-- Event types:
 --   run:start   { file_count: number }
 --   test:done   { suite: string, name: string, status: string, error: string?, duration_ms: number }
 --   suite:done  { suite: SuiteResult }
 --   run:done    { total: number, passed: number, failed: number, skipped: number, duration_ms: number }
-
+--
 type EventPayload = {[string]: any}
-type Listener = (event: string, payload: EventPayload) -> ()
+type Listener     = (event: string, payload: EventPayload) -> ()
 
 local listeners: {Listener} = {}
 
@@ -109,26 +113,23 @@ function Test_Runner.on(listener: Listener)
 end
 
 function Test_Runner.off(listener: Listener)
-    for i, l in ipairs(listeners) do
-        if l == listener then
+    for i, stored_listener in ipairs(listeners) do
+        if (stored_listener == listener) then
             table.remove(listeners, i)
             return
         end
     end
 end
 
-local function emit(event: string, payload: EventPayload)
-    for _, l in ipairs(listeners) do
-        local ok = pcall(l, event, payload)
-        if not ok then
+local function Emit(event: string, payload: EventPayload)
+    for _, stored_listener in ipairs(listeners) do
+        local ok = pcall(stored_listener, event, payload)
+
+        if (not ok) then
             warn(("[Test_Runner] listener error on %s: %s"):format(event, tostring(ok)))
         end
     end
 end
-
---
--- MODULE DEFINITION (Reset)
---
 
 function Test_Runner.Reset()
     results.total       = 0
@@ -141,17 +142,13 @@ function Test_Runner.Reset()
 end
 
 --
--- MODULE DEFINITION (Main run function)
---
-
---
 -- Run all test files found in TEST_FOLDER.
 --
--- This is synchronous — the caller (Server) should spawn it with task.spawn
+-- This is synchronous - the caller (Server) should spawn it with task.spawn
 -- so the HTTP server remains responsive during the run.
 --
 function Test_Runner.Run_Tests()
-    if results.is_running then
+    if (results.is_running) then
         return false, "Tests are already running"
     end
 
@@ -164,9 +161,9 @@ function Test_Runner.Run_Tests()
     -- Discover files
     local file_paths, folder_err = Test_Loader.Find_Test_Files(TEST_FOLDER, true)
 
-    if folder_err then
+    if (folder_err ~= nil) then
         -- Emit a synthetic failed suite so the UI shows the error
-        local suite: SuiteResult = {
+        local error_suite: SuiteResult = {
             file        = "Runner Error",
             path        = TEST_FOLDER,
             nodes       = {},
@@ -174,21 +171,24 @@ function Test_Runner.Run_Tests()
             duration_ms = 0,
             load_error  = folder_err,
         }
-        table.insert(results.suites, suite)
+
+        table.insert(results.suites, error_suite)
         results.total      = 1
         results.failed     = 1
         results.is_running = false
-        emit("run:done", { total = 1, passed = 0, failed = 1, skipped = 0, duration_ms = 0 })
+        Emit("run:done", { total = 1, passed = 0, failed = 1, skipped = 0, duration_ms = 0 })
+
         return false, folder_err
     end
 
-    if #file_paths == 0 then
+    if (#file_paths == 0) then
         results.is_running = false
-        emit("run:done", { total = 0, passed = 0, failed = 0, skipped = 0, duration_ms = 0 })
+        Emit("run:done", { total = 0, passed = 0, failed = 0, skipped = 0, duration_ms = 0 })
+
         return true, "No test files found"
     end
 
-    emit("run:start", { file_count = #file_paths })
+    Emit("run:start", { file_count = #file_paths })
 
     local run_start = os.clock()
 
@@ -196,13 +196,13 @@ function Test_Runner.Run_Tests()
         -- Extract short filename
         local file_name = full_path:match("[^/\\]+$") or full_path
 
-        emit("suite:start", { file = file_name })
+        Emit("suite:start", { file = file_name })
 
         local suite_start = os.clock()
 
         -- Per-test event forwarding
-        local function on_test_done(node: any)
-            emit("test:done", {
+        local function On_Test_Done(node: any)
+            Emit("test:done", {
                 suite       = file_name,
                 name        = node.name,
                 status      = node.status,
@@ -214,22 +214,22 @@ function Test_Runner.Run_Tests()
         end
 
         -- Run through sandbox
-        local sr = Sandbox.run(full_path, file_name, on_test_done)
+        local sandbox_result = Sandbox.run(full_path, file_name, On_Test_Done)
 
         local suite_ms = (os.clock() - suite_start) * 1000
-        local counts   = Count_Nodes(sr.nodes)
+        local counts   = Count_Nodes(sandbox_result.nodes)
 
         local suite: SuiteResult = {
             file        = file_name,
             path        = full_path,
-            nodes       = sr.nodes,
+            nodes       = sandbox_result.nodes,
             counts      = counts,
             duration_ms = suite_ms,
-            load_error  = if not sr.ok then sr.err else nil,
+            load_error  = (not sandbox_result.ok) and sandbox_result.err or nil,
         }
 
         -- If the file failed to load/compile, synthesise a failed count
-        if not sr.ok then
+        if (not sandbox_result.ok) then
             suite.counts = { total = 1, passed = 0, failed = 1, skipped = 0 }
         end
 
@@ -240,13 +240,13 @@ function Test_Runner.Run_Tests()
         results.failed  += suite.counts.failed
         results.skipped += suite.counts.skipped
 
-        emit("suite:done", { suite = suite })
+        Emit("suite:done", { suite = suite })
     end
 
     results.last_run_ms = (os.clock() - run_start) * 1000
     results.is_running  = false
 
-    emit("run:done", {
+    Emit("run:done", {
         total       = results.total,
         passed      = results.passed,
         failed      = results.failed,
@@ -256,6 +256,7 @@ function Test_Runner.Run_Tests()
 
     return true, ("Ran %d tests across %d suites"):format(results.total, #results.suites)
 end
+
 --
 -- RETURN VALUE
 --

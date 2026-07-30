@@ -1,25 +1,31 @@
-"""
-Parse_Scripts_For_Tests - Luau Test Pipeline
+# mypy: strict
 
-Prepares Luau source files for the Lune-based test runner by:
-  1. Optionally renaming .lua files to .luau in the source tree.
-  2. Discovering all .luau scripts under the source directory.
-  3. Copying them into a flat output folder with rewritten require() paths.
-  4. Auto-discovering mock libraries from the submodule's built-in mocks/
-     directory AND an optional project-specific mocks directory, copying them
-     to the same output folder, and injecting require() lines into every
-     processed script that references the corresponding global name.
-  5. Removing "folder" variables that existed solely to build Roblox-style
-     require paths (e.g. `local RS = game.ReplicatedStorage`).
-
-Usage:
-    python Parse_Scripts_For_Tests.py <source> <output> [--project-mocks <dir>]
-    python Parse_Scripts_For_Tests.py <source> <output>                 (built-in mocks only)
-    python Parse_Scripts_For_Tests.py --test                            (self-test)
-"""
+#
+# Parse_Scripts_For_Tests - Luau Test Pipeline
+#
+# Prepares Luau source files for the Lune-based test runner by:
+#   1. Optionally renaming .lua files to .luau in the source tree.
+#   2. Discovering all .luau scripts under the source directory.
+#   3. Copying them into a flat output folder with rewritten require() paths.
+#   4. Auto-discovering mock libraries from the submodule's built-in mocks/
+#      directory AND an optional project-specific mocks directory, copying them
+#      to the same output folder, and injecting require() lines into every
+#      processed script that references the corresponding global name.
+#   5. Removing "folder" variables that existed solely to build Roblox-style
+#      require paths (e.g. `local RS = game.ReplicatedStorage`).
+#
+# Usage:
+#     python Parse_Scripts_For_Tests.py <source> <output> [--project-mocks <dir>]
+#     python Parse_Scripts_For_Tests.py <source> <output>                 (built-in mocks only)
+#     python Parse_Scripts_For_Tests.py --test                            (self-test)
+#
 
 from __future__ import annotations
 
+#
+# IMPORTS
+#
+# Standard library
 import argparse
 import re
 import shutil
@@ -27,26 +33,37 @@ import sys
 import traceback
 
 from pathlib import Path
-from typing  import Dict, List, Optional, Set
+from typing   import Dict, List, Optional, Set
 
+
+#
+# CONSTANTS
+#
+LUAU_EXTENSIONS = (".luau",)
+
+
+#
+# LOCAL FUNCTIONS
+#
 
 # ---------------------------------------------------------------------------
 # 1. File Discovery
 # ---------------------------------------------------------------------------
 
-LUAU_EXTENSIONS = (".luau",)
-
-
 def rename_lua_to_luau(directory: Path) -> int:
     """Rename every .lua file under *directory* to .luau.  Returns count."""
     count = 0
+
     for lua_file in directory.rglob("*.lua"):
         target = lua_file.with_suffix(".luau")
-        if target.exists():
+
+        if (target.exists()):
             print(f"  SKIP (target exists): {lua_file}")
             continue
+
         lua_file.rename(target)
         count += 1
+
     return count
 
 
@@ -56,12 +73,15 @@ def find_luau_files(source_dir: Path, exclude_dir: Optional[Path] = None) -> Lis
     seen_names: Set[str] = set()
 
     for path in sorted(source_dir.rglob("*.luau")):
-        if exclude_dir and path.is_relative_to(exclude_dir):
+        if (exclude_dir and path.is_relative_to(exclude_dir)):
             continue
-        if not path.is_file():
+
+        if (not path.is_file()):
             continue
-        if path.name in seen_names:
+
+        if (path.name in seen_names):
             print(f"  WARNING: duplicate filename '{path.name}' - may cause conflicts")
+
         seen_names.add(path.name)
         results.append(path)
 
@@ -70,8 +90,9 @@ def find_luau_files(source_dir: Path, exclude_dir: Optional[Path] = None) -> Lis
 
 def discover_mock_libraries(mock_dir: Path) -> List[Path]:
     """Return every .luau file directly inside *mock_dir* (non-recursive)."""
-    if not mock_dir.is_dir():
+    if (not mock_dir.is_dir()):
         return []
+
     return sorted(p for p in mock_dir.iterdir() if p.suffix == ".luau" and p.is_file())
 
 
@@ -89,40 +110,45 @@ _RE_FOLDER_DEF = re.compile(
 
 
 def _extract_module_name(expr: str) -> Optional[str]:
-    """Given the inner expression of a `require(...)` call, return the final
-    dotted segment (the module name) or *None* if we can't resolve it."""
+    """Return the final dotted segment (module name) from a require expression."""
     clean = re.sub(r'\s+', '', expr)
     parts = clean.split('.')
-    return parts[-1] if parts else None
+
+    if (parts):
+        return parts[-1]
+
+    return None
 
 
 def _find_matching_paren(content: str, open_paren_idx: int) -> Optional[int]:
     """Return the index of the closing paren that matches *open_paren_idx*."""
     depth = 0
-    quote: Optional[str] = None
+    quote_value: Optional[str] = None
     escape = False
 
     for idx in range(open_paren_idx, len(content)):
         ch = content[idx]
 
-        if quote is not None:
-            if escape:
+        if (quote_value is not None):
+            if (escape):
                 escape = False
-            elif ch == "\\":
+            elif (ch == "\\"):
                 escape = True
-            elif ch == quote:
-                quote = None
+            elif (ch == quote_value):
+                quote_value = None
+
             continue
 
-        if ch in ('"', "'"):
-            quote = ch
+        if (ch in ('"', "'")):
+            quote_value = ch
             continue
 
-        if ch == "(":
+        if (ch == "("):
             depth += 1
-        elif ch == ")":
+        elif (ch == ")"):
             depth -= 1
-            if depth == 0:
+
+            if (depth == 0):
                 return idx
 
     return None
@@ -133,51 +159,68 @@ def _rewrite_require_call(call_text: str) -> str:
     inner = call_text[len("require("):-1]
     stripped = inner.strip()
 
-    if not stripped:
+    if (not stripped):
         return call_text
 
-    if stripped[0] in ('"', "'") and stripped[-1] == stripped[0]:
+    first_char = stripped[0]
+    last_char  = stripped[-1]
+
+    if (first_char in ('"', "'") and last_char == first_char):
         path = stripped[1:-1]
-        if path.startswith("@lune/"):
+
+        if (path.startswith("@lune/")):
             return call_text
-        if path.startswith("./") and "/" not in path[2:]:
+
+        if (path.startswith("./") and "/" not in path[2:]):
             return call_text
+
         module = path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
         for ext in (".luau", ".lua"):
-            if module.endswith(ext):
+            if (module.endswith(ext)):
                 module = module[: -len(ext)]
                 break
+
         return f'require("./{module}")'
 
     module = _extract_module_name(inner)
-    if module:
+
+    if (module):
         return f'require("./{module}")'
+
     return call_text
 
 
 def _rewrite_require_expr(match: re.Match) -> str:
-    """Callback for re.sub - rewrite a game-path require to a string require."""
+    """Re.sub callback - rewrite a game-path require to a string require."""
     module = _extract_module_name(match.group(1))
-    if module:
+
+    if (module):
         return f'require("./{module}")'
+
     return match.group(0)
 
 
 def _flatten_string_require(match: re.Match) -> str:
-    """Callback for re.sub - flatten a string require to `./ModuleName`."""
+    """Re.sub callback - flatten a string require to `./ModuleName`."""
     path = match.group(1)
-    if path.startswith("@lune/"):
+
+    if (path.startswith("@lune/")):
         return match.group(0)
+
     # Already a flat relative require - keep it.
-    if path.startswith("./") and "/" not in path[2:]:
+    if (path.startswith("./") and "/" not in path[2:]):
         return match.group(0)
+
     # Extract the last path segment as the module name.
     module = path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
     # Strip extension if present.
     for ext in (".luau", ".lua"):
-        if module.endswith(ext):
+        if (module.endswith(ext)):
             module = module[: -len(ext)]
             break
+
     return f'require("./{module}")'
 
 
@@ -191,9 +234,10 @@ def rewrite_requires(content: str) -> str:
     rewritten: List[str] = []
     idx = 0
 
-    while True:
+    while (True):
         match = re.search(r'require\s*\(', content[idx:])
-        if not match:
+
+        if (not match):
             rewritten.append(content[idx:])
             break
 
@@ -201,7 +245,7 @@ def rewrite_requires(content: str) -> str:
         open_paren_idx = idx + match.end() - 1
         end = _find_matching_paren(content, open_paren_idx)
 
-        if end is None:
+        if (end is None):
             rewritten.append(content[idx:])
             break
 
@@ -212,6 +256,7 @@ def rewrite_requires(content: str) -> str:
 
     content = "".join(rewritten)
     content = _RE_REQUIRE_STR.sub(_flatten_string_require, content)
+
     return content
 
 
@@ -222,39 +267,55 @@ def rewrite_requires(content: str) -> str:
 def _find_folder_definitions(lines: List[str]) -> Dict[str, int]:
     """Return {var_name: line_index} for folder variables."""
     defs: Dict[str, int] = {}
+
     for i, line in enumerate(lines):
         m = _RE_FOLDER_DEF.match(line.strip())
-        if m:
+
+        if (m):
             defs[m.group(1)] = i
+
     return defs
 
 
 def _variable_used_outside_requires(var: str, lines: List[str], def_idx: int) -> bool:
     """True if *var* appears in a non-require, non-definition context."""
     pattern = re.compile(rf'\b{re.escape(var)}\b')
+
     for i, line in enumerate(lines):
-        if i == def_idx:
+        if (i == def_idx):
             continue
+
         stripped = line.strip()
-        if not stripped or stripped.startswith("--"):
+
+        if (not stripped or stripped.startswith("--")):
             continue
+
         for m in pattern.finditer(line):
             # Inside a require() call - skip.
             prefix = line[:m.start()]
             suffix = line[m.end():]
-            if re.search(r'require\s*\(\s*$', prefix) or re.search(r'require\s*\(', prefix):
-                # Check if there's a closing paren soon after.
-                if re.search(r'^[^)]*\)', suffix):
+
+            if (re.search(r'require\s*\(\s*$', prefix) or re.search(r'require\s*\(', prefix)):
+                # Check if there is a closing paren soon after.
+                if (re.search(r'^[^)]*\)', suffix)):
                     continue
-            # Check we're not inside a string or comment.
+
+            # Check we are not inside a string or comment.
             before = line[:m.start()]
-            if "--" in before:
+
+            if ("--" in before):
                 comment_pos = before.index("--")
-                if m.start() > comment_pos:
+
+                if (m.start() > comment_pos):
                     continue
-            if (before.count('"') + before.count("'")) % 2 != 0:
+
+            quote_count = before.count('"') + before.count("'")
+
+            if ((quote_count % 2) != 0):
                 continue
+
             return True
+
     return False
 
 
@@ -266,10 +327,10 @@ def remove_folder_variables(content: str) -> str:
     indices_to_remove: Set[int] = set()
 
     for var, idx in folder_defs.items():
-        if not _variable_used_outside_requires(var, lines, idx):
+        if (not _variable_used_outside_requires(var, lines, idx)):
             indices_to_remove.add(idx)
 
-    if not indices_to_remove:
+    if (not indices_to_remove):
         return content
 
     return "\n".join(line for i, line in enumerate(lines) if i not in indices_to_remove)
@@ -299,35 +360,43 @@ def inject_mock_requires(
 
     Also injects the Lune `task` require when `task.` appears in *content*.
     """
-    base_stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    base_stem = filename.rsplit(".", 1)[0] if ("." in filename) else filename
 
     imports_to_add: List[str] = []
 
     # File-based mocks.
     for stem in mock_stems:
-        if stem == base_stem:
+        if (stem == base_stem):
             continue
+
         marker = f'require("./{stem}")'
-        if marker in content:
+
+        if (marker in content):
             continue
+
         # Only inject if the mock name actually appears in the file.
-        if re.search(rf'\b{re.escape(stem)}\b', content):
+        if (re.search(rf'\b{re.escape(stem)}\b', content)):
             imports_to_add.append(build_mock_require_line(stem))
 
     # Lune task built-in.
-    if "task." in content and 'require("@lune/task")' not in content:
+    has_task_call     = ("task." in content)
+    has_task_require  = ('require("@lune/task")' in content)
+
+    if (has_task_call and not has_task_require):
         imports_to_add.insert(0, _TASK_REQUIRE)
 
-    if not imports_to_add:
+    if (not imports_to_add):
         return content
 
     lines = content.split("\n")
 
     # Insert after the leading comment / --!strict block.
     insert_idx = 0
+
     for idx, line in enumerate(lines):
         stripped = line.strip()
-        if stripped and not stripped.startswith("--"):
+
+        if (stripped and not stripped.startswith("--")):
             insert_idx = idx
             break
 
@@ -346,6 +415,7 @@ def process_file(content: str, filename: str, mock_stems: List[str]) -> str:
     content = rewrite_requires(content)
     content = remove_folder_variables(content)
     content = inject_mock_requires(content, filename, mock_stems)
+
     return content
 
 
@@ -377,16 +447,18 @@ def run_pipeline(
     print()
 
     # Step 1 - optional .lua => .luau rename.
-    if rename_lua:
+    if (rename_lua):
         count = rename_lua_to_luau(source_dir)
-        if count:
+
+        if (count):
             print(f"[1] Renamed {count} .lua file(s) to .luau")
         else:
             print("[1] No .lua files to rename")
 
     # Step 2 - clean output directory.
-    if output_dir.exists():
+    if (output_dir.exists()):
         shutil.rmtree(output_dir)
+
     output_dir.mkdir(parents=True)
 
     # Step 3 - discover and copy mock libraries from BOTH locations.
@@ -396,34 +468,41 @@ def run_pipeline(
 
     # Copy built-in mocks first.
     built_in_files = discover_mock_libraries(built_in_mocks_dir)
+
     for mock_file in built_in_files:
         shutil.copy2(mock_file, output_dir / mock_file.name)
         stem = mock_file.stem
-        if stem not in mock_names:
+
+        if (stem not in mock_names):
             mock_stems.append(stem)
             mock_names.add(stem)
+
         print(f"[2] Copied built-in mock: {mock_file.name}")
 
     # Copy project-specific mocks (may override built-in).
-    if project_mock_dir:
+    if (project_mock_dir):
         project_files = discover_mock_libraries(project_mock_dir)
+
         for mock_file in project_files:
             shutil.copy2(mock_file, output_dir / mock_file.name)
             stem = mock_file.stem
-            if stem not in mock_names:
+
+            if (stem not in mock_names):
                 mock_stems.append(stem)
                 mock_names.add(stem)
                 print(f"[2] Copied project mock: {mock_file.name}")
             else:
                 print(f"[2] Copied project mock (overrides built-in): {mock_file.name}")
-        if not project_files:
+
+        if (not project_files):
             print("[2] No project-specific mock libraries found")
     else:
         print("[2] No project-specific mock directory specified")
 
     # Step 4 - discover, process, and copy source files.
     source_files = find_luau_files(source_dir, exclude_dir=output_dir)
-    if not source_files:
+
+    if (not source_files):
         print("[3] No .luau source files found")
         return
 
@@ -432,27 +511,30 @@ def run_pipeline(
 
     print(f"[3] Processing {len(source_files)} source file(s)...")
     skipped_for_mock = 0
+
     for src_path in source_files:
-        if src_path.name in mock_filenames:
+        if (src_path.name in mock_filenames):
             skipped_for_mock += 1
             continue
+
         try:
-            content = src_path.read_text(encoding="utf-8")
-            processed = process_file(content, src_path.name, mock_stems)
+            content     = src_path.read_text(encoding="utf-8")
+            processed   = process_file(content, src_path.name, mock_stems)
             (output_dir / src_path.name).write_text(processed, encoding="utf-8")
             print(f"     {src_path.name}")
         except Exception as exc:
             print(f"  ERROR processing {src_path}: {exc}")
             traceback.print_exc()
-    if skipped_for_mock:
-        print(f"     ({skipped_for_mock} source file(s) skipped — overridden by mock)")
+
+    if (skipped_for_mock):
+        print(f"     ({skipped_for_mock} source file(s) skipped -- overridden by mock)")
 
     print()
-    print(f"Done - {len(source_files) - skipped_for_mock} file(s) written to {output_dir}")
+    total_processed = len(source_files) - skipped_for_mock
+    print(f"Done - {total_processed} file(s) written to {output_dir}")
 
 
 # ---------------------------------------------------------------------------
-
 # 7. Self-Test
 # ---------------------------------------------------------------------------
 
@@ -460,32 +542,51 @@ def self_test() -> None:
     """Quick smoke tests for core helpers."""
     print("Running self-tests...")
 
-    # require rewriting.
-    assert rewrite_requires('require(game.RS.Modules.Foo)') == 'require("./Foo")'
-    assert rewrite_requires('require(Folder.Sub.Bar)') == 'require("./Bar")'
-    assert rewrite_requires('require(Replicated_Storage:WaitForChild("Classes").Game_Instances.Archetypes.Build_Archetype.Build_Archetype)') == 'require("./Build_Archetype")'
-    assert rewrite_requires('require("@lune/task")') == 'require("@lune/task")'
-    assert rewrite_requires('require("../some/deep/Module")') == 'require("./Module")'
-    assert rewrite_requires('require("./Already")') == 'require("./Already")'
+    # Require rewriting.
+    result = rewrite_requires('require(game.RS.Modules.Foo)')
+    assert result == 'require("./Foo")'
 
-    # folder variable removal.
-    src = "local RS = game.ReplicatedStorage.Stuff\nlocal M = require(RS.Module)\n"
+    result = rewrite_requires('require(Folder.Sub.Bar)')
+    assert result == 'require("./Bar")'
+
+    result = rewrite_requires(
+        'require(Replicated_Storage:WaitForChild("Classes").Game_Instances.Archetypes.Build_Archetype.Build_Archetype)'
+    )
+    assert result == 'require("./Build_Archetype")'
+
+    result = rewrite_requires('require("@lune/task")')
+    assert result == 'require("@lune/task")'
+
+    result = rewrite_requires('require("../some/deep/Module")')
+    assert result == 'require("./Module")'
+
+    result = rewrite_requires('require("./Already")')
+    assert result == 'require("./Already")'
+
+    # Folder variable removal.
+    src    = "local RS = game.ReplicatedStorage.Stuff\nlocal M = require(RS.Module)\n"
     result = remove_folder_variables(src)
     assert "local RS" not in result
     assert "require" in result
 
-    # mock injection.
-    code = "local v = Vector3.new(1,2,3)\n"
+    # Mock injection.
+    code     = "local v = Vector3.new(1,2,3)\n"
     injected = inject_mock_requires(code, "Foo.luau", ["Vector2", "Vector3"])
     assert 'require("./Vector3")' in injected
-    assert 'require("./Vector2")' not in injected  # Vector2 not used.
+    # Vector2 not used.
+    assert 'require("./Vector2")' not in injected
 
-    # task injection.
-    code2 = "task.wait(1)\n"
+    # Task injection.
+    code2     = "task.wait(1)\n"
     injected2 = inject_mock_requires(code2, "Bar.luau", [])
     assert 'require("@lune/task")' in injected2
 
     print("All self-tests passed.")
+
+
+#
+# PUBLIC API
+#
 
 
 # ---------------------------------------------------------------------------
@@ -509,11 +610,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.test:
+    if (args.test):
         self_test()
         return
 
-    if not args.source or not args.output:
+    if (not args.source or not args.output):
         parser.print_help()
         sys.exit(1)
 
@@ -521,16 +622,16 @@ def main() -> None:
     output_path = Path(args.output).resolve()
     project_mock_path = Path(args.project_mocks).resolve() if args.project_mocks else None
 
-    if not source_path.is_dir():
+    if (not source_path.is_dir()):
         print(f"Error: source directory '{args.source}' does not exist.")
         sys.exit(1)
 
-    if project_mock_path and not project_mock_path.is_dir():
+    if (project_mock_path and not project_mock_path.is_dir()):
         print(f"Error: mock directory '{args.project_mocks}' does not exist.")
         sys.exit(1)
 
     run_pipeline(source_path, output_path, project_mock_path, rename_lua=not args.no_rename)
 
 
-if __name__ == "__main__":
+if (__name__ == "__main__"):
     main()

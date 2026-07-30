@@ -4,7 +4,7 @@
 --
 export type Strategy<T> = {
     generate: () -> T,
-    shrink: (value: T) -> {T},
+    shrink:   (value: T) -> {T},
 }
 
 --
@@ -16,7 +16,9 @@ local random = math.random
 -- LOCAL FUNCTIONS
 --
 
+--
 -- Asserts that a condition holds and returns an error message otherwise.
+--
 local function Assert_Or_Error(condition: boolean, message: string)
     if (not condition) then
         error(message)
@@ -30,45 +32,55 @@ end
 --
 -- Creates a strategy that generates integers uniformly in [min, max].
 --
--- Shrinks toward 0, then toward ±1, then halves toward 0.
+-- Shrinks toward 0, then toward +/-1, then halves toward 0.
 --
 -- Parameters:
---     • min (number) - Minimum value (inclusive)
---     • max (number) - Maximum value (inclusive)
+--     min (number) - Minimum value (inclusive)
+--     max (number) - Maximum value (inclusive)
 --
 -- Returns:
 --     Strategy<number>
 --
 local function Integer(min: number, max: number): Strategy<number>
     if (min > max) then
-        local temp   = min
-        min          = max
-        max          = temp
+        local swap_temp = min
+        min             = max
+        max             = swap_temp
     end
 
     local strategy: Strategy<number> = {
         generate = function(): number
             return random(min, max)
         end,
+
         shrink = function(value: number): {number}
             if (value == 0) then
                 return {}
             end
 
             local candidates: {number} = {}
-
             table.insert(candidates, 0)
 
             local abs_value = math.abs(value)
-            if (abs_value > 1) then
-                local sign = if value > 0 then 1 else -1
-                table.insert(candidates, sign)
 
-                local current = abs_value
-                while (current > 1) do
-                    current = math.floor(current / 2)
-                    if (current ~= 0) then
-                        table.insert(candidates, sign * current)
+            if (abs_value > 1) then
+                local sign_value: number
+
+                if (value > 0) then
+                    sign_value = 1
+                else
+                    sign_value = -1
+                end
+
+                table.insert(candidates, sign_value)
+
+                local current_halved = abs_value
+
+                while (current_halved > 1) do
+                    current_halved = math.floor(current_halved / 2)
+
+                    if (current_halved ~= 0) then
+                        table.insert(candidates, sign_value * current_halved)
                     end
                 end
             end
@@ -86,17 +98,17 @@ end
 -- Shrinks toward 0, then halves toward 0.
 --
 -- Parameters:
---     • min (number) - Minimum value (inclusive)
---     • max (number) - Maximum value (inclusive)
+--     min (number) - Minimum value (inclusive)
+--     max (number) - Maximum value (inclusive)
 --
 -- Returns:
 --     Strategy<number>
 --
 local function Float(min: number, max: number): Strategy<number>
     if (min > max) then
-        local temp = min
-        min        = max
-        max        = temp
+        local swap_temp = min
+        min             = max
+        max             = swap_temp
     end
 
     local range = max - min
@@ -105,14 +117,15 @@ local function Float(min: number, max: number): Strategy<number>
         generate = function(): number
             return min + random() * range
         end,
+
         shrink = function(value: number): {number}
             local candidates: {number} = {}
-
             table.insert(candidates, 0)
 
-            local half = value / 2
-            if (half ~= value) then
-                table.insert(candidates, half)
+            local half_value = value / 2
+
+            if (half_value ~= value) then
+                table.insert(candidates, half_value)
             end
 
             if (value > 0) then
@@ -141,10 +154,12 @@ local function Boolean(): Strategy<boolean>
         generate = function(): boolean
             return random() > 0.5
         end,
+
         shrink = function(value: boolean): {boolean}
             if (value) then
                 return { false }
             end
+
             return {}
         end,
     }
@@ -166,6 +181,7 @@ local function Character(): Strategy<string>
             local char_code = random(32, 126)
             return string.char(char_code)
         end,
+
         shrink = function(value: string): {string}
             if (value == "a") then
                 return {}
@@ -173,6 +189,7 @@ local function Character(): Strategy<string>
 
             local candidates: {string} = {}
             table.insert(candidates, "a")
+
             return candidates
         end,
     }
@@ -186,18 +203,18 @@ end
 -- Shrinks toward empty string, then shorter strings.
 --
 -- Parameters:
---     • min_len (number) - Minimum string length (inclusive)
---     • max_len (number) - Maximum string length (inclusive)
---     • char_strategy (Strategy<string>?) - Strategy for individual characters (default: Character)
+--     min_len       (number)               - Minimum string length (inclusive)
+--     max_len       (number)               - Maximum string length (inclusive)
+--     char_strategy (Strategy<string>?)     - Strategy for individual characters (default: Character)
 --
 -- Returns:
 --     Strategy<string>
 --
 local function String(min_len: number, max_len: number, char_strategy: Strategy<string>?): Strategy<string>
     if (min_len > max_len) then
-        local temp = min_len
-        min_len    = max_len
-        max_len    = temp
+        local swap_temp = min_len
+        min_len         = max_len
+        max_len         = swap_temp
     end
 
     local char_s = char_strategy or Character()
@@ -213,28 +230,29 @@ local function String(min_len: number, max_len: number, char_strategy: Strategy<
 
             return table.concat(characters)
         end,
+
         shrink = function(value: string): {string}
             local candidates: {string} = {}
 
-            local length = #value
-            if (length == 0) then
+            local str_length = #value
+
+            if (str_length == 0) then
                 return candidates
             end
 
             table.insert(candidates, "")
-            if (length > 0) then
-                -- Remove characters from the end
-                for i = length, 1, -1 do
-                    local shorter = value:sub(1, i - 1)
-                    table.insert(candidates, shorter)
-                end
 
-                -- Remove characters from the start
-                for i = length, 1, -1 do
-                    if (i > 1) then
-                        local shorter = value:sub(i)
-                        table.insert(candidates, shorter)
-                    end
+            -- Remove characters from the end
+            for i = str_length, 1, -1 do
+                local shorter = value:sub(1, i - 1)
+                table.insert(candidates, shorter)
+            end
+
+            -- Remove characters from the start
+            for i = str_length, 1, -1 do
+                if (i > 1) then
+                    local shorter = value:sub(i)
+                    table.insert(candidates, shorter)
                 end
             end
 
@@ -251,18 +269,18 @@ end
 -- Shrinks toward empty list, then removes one element at a time.
 --
 -- Parameters:
---     • element_strategy (Strategy<T>) - Strategy for individual elements
---     • min_size (number) - Minimum list size (inclusive)
---     • max_size (number) - Maximum list size (inclusive)
+--     element_strategy (Strategy<T>) - Strategy for individual elements
+--     min_size         (number)      - Minimum list size (inclusive)
+--     max_size         (number)      - Maximum list size (inclusive)
 --
 -- Returns:
 --     Strategy<{T}>
 --
 local function List<T>(element_strategy: Strategy<T>, min_size: number, max_size: number): Strategy<{T}>
     if (min_size > max_size) then
-        local temp   = min_size
-        min_size     = max_size
-        max_size     = temp
+        local swap_temp = min_size
+        min_size        = max_size
+        max_size        = swap_temp
     end
 
     local strategy: Strategy<{T}> = {
@@ -276,28 +294,27 @@ local function List<T>(element_strategy: Strategy<T>, min_size: number, max_size
 
             return result
         end,
+
         shrink = function(value: {T}): {{T}}
             local candidates: {{T}} = {}
+            local list_count = #value
 
-            local count = #value
-            if (count == 0) then
+            if (list_count == 0) then
                 return candidates
             end
 
             table.insert(candidates, {})
 
-            if (count > 0) then
-                for i = 1, count do
-                    local shorter: {T} = {}
+            for i = 1, list_count do
+                local shorter: {T} = {}
 
-                    for j = 1, count do
-                        if (j ~= i) then
-                            table.insert(shorter, value[j])
-                        end
+                for j = 1, list_count do
+                    if (j ~= i) then
+                        table.insert(shorter, value[j])
                     end
-
-                    table.insert(candidates, shorter)
                 end
+
+                table.insert(candidates, shorter)
             end
 
             return candidates
@@ -313,7 +330,7 @@ end
 -- Shrinks toward earlier elements in the list.
 --
 -- Parameters:
---     • elements ({T}) - Fixed set of elements to pick from
+--     elements ({T}) - Fixed set of elements to pick from
 --
 -- Returns:
 --     Strategy<T>
@@ -321,17 +338,20 @@ end
 local function Sampled<T>(elements: {T}): Strategy<T>
     local strategy: Strategy<T> = {
         generate = function(): T
-            local count = #elements
-            Assert_Or_Error(count > 0, "Sampled strategy requires at least one element")
+            local element_count = #elements
 
-            local index = random(1, count)
+            Assert_Or_Error(element_count > 0, "Sampled strategy requires at least one element")
+
+            local index = random(1, element_count)
             return elements[index]
         end,
+
         shrink = function(value: T): {T}
             local candidates: {T} = {}
 
             -- Find the index of the current value
             local found_index: number? = nil
+
             for i, element in ipairs(elements) do
                 if (element == value) then
                     found_index = i
@@ -339,7 +359,7 @@ local function Sampled<T>(elements: {T}): Strategy<T>
                 end
             end
 
-            if (found_index) then
+            if (found_index ~= nil) then
                 -- Try elements before the current one
                 for i = 1, found_index - 1 do
                     table.insert(candidates, elements[i])
@@ -359,7 +379,7 @@ end
 -- Shrinks each element independently.
 --
 -- Parameters:
---     • strategies ({Strategy<any>}) - Array of strategies for each tuple position
+--     strategies ({Strategy<any>}) - Array of strategies for each tuple position
 --
 -- Returns:
 --     Strategy<{any}>
@@ -369,28 +389,29 @@ local function Tuple(strategies: {Strategy<any>}): Strategy<{any}>
         generate = function(): {any}
             local result: {any} = {}
 
-            for _, s in ipairs(strategies) do
-                table.insert(result, s.generate())
+            for _, strat in ipairs(strategies) do
+                table.insert(result, strat.generate())
             end
 
             return result
         end,
+
         shrink = function(value: {any}): {{any}}
             local candidates: {{any}} = {}
 
             -- Shrink each position independently
-            for i, s in ipairs(strategies) do
-                local element     = value[i]
-                local shrunk_list = s.shrink(element)
+            for i, strat in ipairs(strategies) do
+                local element      = value[i]
+                local shrunk_list  = strat.shrink(element)
 
                 for _, shrunk_element in ipairs(shrunk_list) do
                     local new_tuple: {any} = {}
 
-                    for j, v in ipairs(value) do
+                    for j, original_value in ipairs(value) do
                         if (j == i) then
                             table.insert(new_tuple, shrunk_element)
                         else
-                            table.insert(new_tuple, v)
+                            table.insert(new_tuple, original_value)
                         end
                     end
 
@@ -411,30 +432,30 @@ end
 -- Shrinks by removing keys.
 --
 -- Parameters:
---     • key_strategy (Strategy<any>) - Strategy for keys
---     • value_strategy (Strategy<any>) - Strategy for values
---     • max_pairs (number?) - Maximum number of key-value pairs (default: 5)
+--     key_strategy   (Strategy<any>)  - Strategy for keys
+--     value_strategy (Strategy<any>)  - Strategy for values
+--     max_pairs      (number?)        - Maximum number of key-value pairs (default: 5)
 --
 -- Returns:
 --     Strategy<{[any]: any}>
 --
 local function Dictionary(
-    key_strategy  : Strategy<any>,
-    value_strategy: Strategy<any>,
-    max_pairs     : number?
+    key_strategy   : Strategy<any>,
+    value_strategy : Strategy<any>,
+    max_pairs      : number?
 ): Strategy<{[any]: any}>
-    local max = max_pairs or 5
+    local max_pair_count = max_pairs or 5
 
-    if (max < 1) then
-        max = 1
+    if (max_pair_count < 1) then
+        max_pair_count = 1
     end
 
     local strategy: Strategy<{[any]: any}> = {
         generate = function(): {[any]: any}
-            local count  = random(1, max)
+            local pair_count = random(1, max_pair_count)
             local result: {[any]: any} = {}
 
-            for _ = 1, count do
+            for _ = 1, pair_count do
                 local key   = key_strategy.generate()
                 local value = value_strategy.generate()
                 result[key] = value
@@ -442,11 +463,13 @@ local function Dictionary(
 
             return result
         end,
+
         shrink = function(value: {[any]: any}): {{[any]: any}}
             local candidates: {{[any]: any}} = {}
 
             -- If already empty, nothing to shrink
             local first_key = next(value)
+
             if (first_key == nil) then
                 return candidates
             end
@@ -455,6 +478,7 @@ local function Dictionary(
 
             -- Remove one key at a time
             local keys: {any} = {}
+
             for k, _ in pairs(value) do
                 table.insert(keys, k)
             end
@@ -488,8 +512,8 @@ end
 -- Shrinking uses the source strategy's shrink, then transforms the result.
 --
 -- Parameters:
---     • strategy (Strategy<T>) - Source strategy
---     • transform (function) - Mapping function: (T) -> U
+--     strategy  (Strategy<T>)         - Source strategy
+--     transform ((value: T) -> U)     - Mapping function
 --
 -- Returns:
 --     Strategy<U>
@@ -507,6 +531,7 @@ local function Map<T, U>(strategy: Strategy<T>, transform: (value: T) -> U): Str
 
             return result
         end,
+
         shrink = function(value: U): {U}
             local source_value = memo[value]
 
@@ -537,9 +562,9 @@ end
 -- Shrinks using the source strategy.
 --
 -- Parameters:
---     • strategy (Strategy<T>) - Source strategy
---     • predicate (function) - Filter function: (T) -> boolean
---     • max_attempts (number?) - Maximum regeneration attempts (default: 100)
+--     strategy      (Strategy<T>)    - Source strategy
+--     predicate     ((value: T) -> boolean) - Filter function
+--     max_attempts  (number?)         - Maximum regeneration attempts (default: 100)
 --
 -- Returns:
 --     Strategy<T>
@@ -559,6 +584,7 @@ local function Filter<T>(strategy: Strategy<T>, predicate: (value: T) -> boolean
 
             error(("Filter strategy: could not satisfy predicate after %d attempts"):format(max_tries))
         end,
+
         shrink = function(value: T): {T}
             local shrink_candidates = strategy.shrink(value)
             local candidates: {T} = {}
@@ -582,7 +608,7 @@ end
 -- Shrinks by trying each alternative strategy's shrink.
 --
 -- Parameters:
---     • strategies ({Strategy<T>}) - Array of strategies to choose from
+--     strategies ({Strategy<T>}) - Array of strategies to choose from
 --
 -- Returns:
 --     Strategy<T>
@@ -595,12 +621,13 @@ local function One_Of<T>(strategies: {Strategy<T>}): Strategy<T>
             local index = random(1, #strategies)
             return strategies[index].generate()
         end,
+
         shrink = function(value: T): {T}
             local candidates: {T} = {}
 
             -- Try shrinking with each strategy
-            for _, s in ipairs(strategies) do
-                local shrunk_list = s.shrink(value)
+            for _, strat in ipairs(strategies) do
+                local shrunk_list = strat.shrink(value)
 
                 for _, candidate in ipairs(shrunk_list) do
                     table.insert(candidates, candidate)
@@ -620,7 +647,7 @@ end
 -- Shrinks by trying each strategy's shrink in order of weight (heaviest first).
 --
 -- Parameters:
---     • pairs ({{weight: number, strategy: Strategy<T>}}) - Array of weight-strategy pairs
+--     pairs ({{weight: number, strategy: Strategy<T>}}) - Array of weight-strategy pairs
 --
 -- Returns:
 --     Strategy<T>
@@ -633,7 +660,7 @@ local function Frequency<T>(pairs: {{weight: number, strategy: Strategy<T>}}): S
     local total_weight: number = 0
 
     for _, pair in ipairs(pairs) do
-        total_weight        += pair.weight
+        total_weight += pair.weight
         table.insert(cumulative, total_weight)
     end
 
@@ -641,7 +668,7 @@ local function Frequency<T>(pairs: {{weight: number, strategy: Strategy<T>}}): S
 
     local strategy: Strategy<T> = {
         generate = function(): T
-            local roll      = random() * total_weight
+            local roll         = random() * total_weight
             local chosen_index = 1
 
             for i, cum_weight in ipairs(cumulative) do
@@ -653,13 +680,14 @@ local function Frequency<T>(pairs: {{weight: number, strategy: Strategy<T>}}): S
 
             return pairs[chosen_index].strategy.generate()
         end,
+
         shrink = function(value: T): {T}
             local candidates: {T} = {}
 
             -- Try shrinking with each strategy, highest weight first
             for i = #pairs, 1, -1 do
-                local s = pairs[i].strategy
-                local shrunk_list = s.shrink(value)
+                local strat          = pairs[i].strategy
+                local shrunk_list    = strat.shrink(value)
 
                 for _, candidate in ipairs(shrunk_list) do
                     table.insert(candidates, candidate)
@@ -691,6 +719,7 @@ local Generators = {
     one_of     = One_Of,
     frequency  = Frequency,
 }
+
 --
 -- RETURN VALUE
 --

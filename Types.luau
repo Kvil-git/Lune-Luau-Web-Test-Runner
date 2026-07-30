@@ -3,6 +3,7 @@
 -- REQUIRES
 --
 -- (none)
+
 --
 -- EXPORT TYPES
 --
@@ -30,7 +31,7 @@ export type Test_Module = {
 -- on test failure toward a minimal failing example.
 export type Strategy<T> = {
     generate: () -> T,
-    shrink: (value: T) -> {T},
+    shrink:   (value: T) -> {T},
 }
 
 -- Tree node produced by the TestEZ compat layer.
@@ -42,7 +43,7 @@ export type TestNode = {
     children    : {TestNode}?,
     error       : string?,
     duration_ms : number,
-    seed        : number?,        -- seed for reproduction of property-based test
+    seed        : number?,          -- seed for reproduction of property-based test
     falsifying  : {[string]: any}?, -- shrunk counterexample from property-based test
 }
 
@@ -56,12 +57,12 @@ export type Counts = {
 
 -- Top-level result for a single test file / spec suite
 export type SuiteResult = {
-    file        : string,          -- short filename e.g. "PlayerService.spec.luau"
-    path        : string,          -- full path
-    nodes       : {TestNode},      -- describe/it tree
+    file        : string,        -- short filename e.g. "PlayerService.spec.luau"
+    path        : string,        -- full path
+    nodes       : {TestNode},    -- describe/it tree
     counts      : Counts,
     duration_ms : number,
-    load_error  : string?,         -- set when the file failed to even load/compile
+    load_error  : string?,       -- set when the file failed to even load/compile
 }
 
 -- Overall runner results (returned by /results)
