@@ -239,4 +239,4 @@ lune run test-runner/run -- --headless
 
 ## License
 
-Provided as-is for educational and practical use with Luau testing.
+Licensed under the GNU Lesser General Public License v2.1. See [LICENSE](./LICENSE) for details.
