@@ -1,0 +1,10 @@
+# Generated test output (from parent projects)
+/tests/Scripts_Copies_With_String_Requires/*
+tests/Scripts_Copies_With_String_Requires
+
+# Lune results output
+results.json
+
+# Python
+__pycache__/
+*.pyc
