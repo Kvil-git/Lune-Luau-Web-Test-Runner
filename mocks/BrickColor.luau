@@ -82,16 +82,6 @@ local function registerPaletteEntry(number: number, name: string, r: number, g: 
     return entry
 end
 
-local function createBrickColor(entry: BrickColorEntry): BrickColor
-    local self: any = {
-        Name   = entry.Name,
-        Number = entry.Number,
-        Color  = entry.Color,
-    }
-    setmetatable(self, mt)
-    return (self :: any) :: BrickColor
-end
-
 local function normalizeNumber(value: number): number
     return math.floor(value + 0.5)
 end
@@ -166,13 +156,6 @@ local function getOrCreateNumericEntry(number: number): BrickColorEntry
 
     return entry
 end
-
---
--- fromValue
---
--- Converts a number, string, or Color3-like value into a BrickColor.
---
-local function fromValue(value: number | string | Color3Like): BrickColor
     local valueType = typeof(value)
 
     if (valueType == "number") then
@@ -249,6 +232,51 @@ BrickColor.__type = "BrickColor"
 local mt = {
     __index = BrickColor,
 } :: any
+
+local function createBrickColor(entry: BrickColorEntry): BrickColor
+    local self: any = {
+        Name   = entry.Name,
+        Number = entry.Number,
+        Color  = entry.Color,
+    }
+    setmetatable(self, mt)
+    return (self :: any) :: BrickColor
+end
+
+--
+-- fromValue
+--
+-- Converts a number, string, or Color3-like value into a BrickColor.
+--
+local function fromValue(value: number | string | Color3Like): BrickColor
+    local valueType = typeof(value)
+
+    if (valueType == "number") then
+        return createBrickColor(getOrCreateNumericEntry(value :: number))
+    end
+
+    if (valueType == "string") then
+        local name    = value :: string
+        local numeric = tonumber(name)
+
+        if (numeric ~= nil) then
+            return createBrickColor(getOrCreateNumericEntry(numeric))
+        end
+
+        local entry = paletteByKey[keyFromName(name)]
+        if (entry ~= nil) then
+            return createBrickColor(entry)
+        end
+
+        error(("Unknown BrickColor name '%s'"):format(name))
+    end
+
+    if (isColor3Like(value)) then
+        return createBrickColor(findClosestPaletteEntry(value :: Color3Like))
+    end
+
+    error("BrickColor.new expects a number, string, or Color3")
+end
 
 function BrickColor.new(value: number | string | Color3Like): BrickColor
     return fromValue(value)

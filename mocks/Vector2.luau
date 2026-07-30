@@ -59,8 +59,20 @@ local EPSILON = (0.000001)
 local DEG2RAD = (math.pi / 180)
 local RAD2DEG = (1 / DEG2RAD)
 --
--- LOCAL FUNCTIONS
+-- LOCAL FORWARD DECLARATIONS
 --
+-- (createRawVector2 and updateMagnitudeAndUnit are defined after the module
+--  table so they can capture the metatable upvalue correctly.)
+--
+-- MODULE DEFINITION
+--
+local Vector2: Vector2 = {} :: Vector2
+Vector2.__type = "Vector2"
+
+local mt: Vector2Metatable = {
+    __index = Vector2,
+} :: Vector2Metatable
+
 local function createRawVector2(x: number, y: number): Vector2
     local self: any = {
         X         = x,
@@ -86,7 +98,7 @@ local function updateMagnitudeAndUnit(self: Vector2)
             local unit = createRawVector2(xValue / magnitude, yValue / magnitude)
 
             unit.Magnitude = 1
-            unit.Unit      = unit  -- Unit vector's unit is itself
+            unit.Unit      = unit
             self.Unit      = unit
         else
             -- Update existing unit vector
@@ -111,11 +123,6 @@ local function fuzzyEq(a: number, b: number, epsilon: number): boolean
     return ((a == b) or (math.abs(a - b) <= ((math.abs(a) + 1) * epsilon)))
 end
 
---
--- isScalarVectorPair
---
--- Returns true when one argument is a number and the other is a Vector2 table.
---
 local function isScalarVectorPair(a: any, b: any): (boolean, boolean)
     local aIsNumber = (type(a) == "number")
     local bIsNumber = (type(b) == "number")
@@ -125,26 +132,12 @@ local function isScalarVectorPair(a: any, b: any): (boolean, boolean)
     return (aIsNumber and bIsVector), (bIsNumber and aIsVector)
 end
 
---
--- isVectorVectorPair
---
--- Returns true when both arguments are Vector2 tables.
---
 local function isVectorVectorPair(a: any, b: any): boolean
     local aIsVector = (typeof(a) == "table") and ((a :: any).__type == "Vector2")
     local bIsVector = (typeof(b) == "table") and ((b :: any).__type == "Vector2")
 
     return (aIsVector and bIsVector)
 end
---
--- MODULE DEFINITION
---
-local Vector2: Vector2 = {} :: Vector2
-Vector2.__type = "Vector2"
-
-local mt: Vector2Metatable = {
-    __index = Vector2,
-} :: Vector2Metatable
 
 function Vector2.new(x: number?, y: number?): Vector2
     local xNum = x

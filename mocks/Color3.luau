@@ -28,6 +28,16 @@ type Color3Metatable = {
     __tostring: (self: Color3)         -> string,
 }
 --
+-- MODULE DEFINITION
+--
+local Color3: Color3 = {} :: any
+Color3.__type = "Color3"
+
+local mt = {
+    __index = Color3,
+} :: any
+
+--
 -- LOCAL FUNCTIONS
 --
 local function clamp01(value: number): number
@@ -35,7 +45,13 @@ local function clamp01(value: number): number
 end
 
 local function hexPairToNumber(pair: string): number
-    return tonumber(pair, 16) or 0
+    local value = tonumber(pair, 16)
+
+    if (value == nil) then
+        error(("Invalid hex pair '%s'"):format(pair))
+    end
+
+    return value
 end
 
 local function rgbToHsv(r: number, g: number, b: number): (number, number, number)
@@ -103,15 +119,6 @@ local function createRawColor3(r: number, g: number, b: number): Color3
     setmetatable(self, mt)
     return self :: Color3
 end
---
--- MODULE DEFINITION
---
-local Color3: Color3 = {} :: any
-Color3.__type = "Color3"
-
-local mt = {
-    __index = Color3,
-} :: any
 
 function Color3.new(r: number?, g: number?, b: number?): Color3
     local red   = r
