@@ -14,14 +14,15 @@ local fs = require("@lune/fs")
 -- keys below.
 --
 local DEFAULTS = {
-    ["SOURCE_FOLDER"]    = "./src",
-    ["TEST_FOLDER"]      = "./tests",
-    ["OUTPUT_FOLDER"]    = "./tests/Scripts_Copies_With_String_Requires",
-    ["MOCK_LIBS_FOLDER"] = "./src/Mock_Roblox_Libs",
-    ["PORT"]             = (8080),
-    ["SPEC_PATTERN"]     = "**/*.spec.luau",
-    ["SEED"]             = nil,
-    ["EXAMPLES"]         = (100),
+    ["SOURCE_FOLDER"]         = "./src",
+    ["EXTRA_SOURCE_FOLDERS"]  = {},
+    ["TEST_FOLDER"]           = "./tests",
+    ["OUTPUT_FOLDER"]         = "./tests/Scripts_Copies_With_String_Requires",
+    ["MOCK_LIBS_FOLDER"]      = "./src/Mock_Roblox_Libs",
+    ["PORT"]                  = (8080),
+    ["SPEC_PATTERN"]          = "**/*.spec.luau",
+    ["SEED"]                  = nil,
+    ["EXAMPLES"]              = (100),
 }
 
 --
@@ -71,15 +72,16 @@ local MOCK_LIBS_FOLDER = Get_Config("MOCK_LIBS_FOLDER", DEFAULTS.MOCK_LIBS_FOLDE
 local PORT_VALUE       = Get_Config("PORT",             DEFAULTS.PORT)
 
 local CONSTANTS = {
-    ["TEST_FOLDER"]      = TEST_FOLDER,
-    ["SOURCE_FOLDER"]    = SOURCE_FOLDER,
-    ["OUTPUT_FOLDER"]    = OUTPUT_FOLDER,
-    ["MOCK_LIBS_FOLDER"] = MOCK_LIBS_FOLDER,
-    ["FRONTEND_HTML"]    = fs.readFile(Submodule_Path("Front_End.html")),
-    ["PORT"]             = PORT_VALUE,
-    ["SPEC_PATTERN"]     = Get_Config("SPEC_PATTERN", DEFAULTS.SPEC_PATTERN),
-    ["SEED"]             = Get_Config("SEED", DEFAULTS.SEED),
-    ["EXAMPLES"]         = Get_Config("EXAMPLES", DEFAULTS.EXAMPLES),
+    ["TEST_FOLDER"]           = TEST_FOLDER,
+    ["SOURCE_FOLDER"]         = SOURCE_FOLDER,
+    ["EXTRA_SOURCE_FOLDERS"]  = Get_Config("EXTRA_SOURCE_FOLDERS", DEFAULTS.EXTRA_SOURCE_FOLDERS),
+    ["OUTPUT_FOLDER"]         = OUTPUT_FOLDER,
+    ["MOCK_LIBS_FOLDER"]      = MOCK_LIBS_FOLDER,
+    ["FRONTEND_HTML"]         = fs.readFile(Submodule_Path("Front_End.html")),
+    ["PORT"]                  = PORT_VALUE,
+    ["SPEC_PATTERN"]          = Get_Config("SPEC_PATTERN", DEFAULTS.SPEC_PATTERN),
+    ["SEED"]                  = Get_Config("SEED", DEFAULTS.SEED),
+    ["EXAMPLES"]              = Get_Config("EXAMPLES", DEFAULTS.EXAMPLES),
 }
 
 --

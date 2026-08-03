@@ -19,6 +19,14 @@ return {
     MOCK_LIBS_FOLDER = "./src/Mock_Roblox_Libs",
 
     --
+    -- Additional source directories flattened into the output, e.g. a shared
+    -- useful_libraries submodule.  The main SOURCE_FOLDER wins on collisions.
+    --
+    EXTRA_SOURCE_FOLDERS = {
+        "./useful_libraries/src",
+    },
+
+    --
     -- Place file candidates for game.luau mock.
     -- The mock tries each path in order until it finds an existing file.
     --

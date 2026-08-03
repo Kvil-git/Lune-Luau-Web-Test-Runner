@@ -124,6 +124,9 @@ Create `test-runner.config.luau` at your project root. All keys are optional —
 ```luau
 return {
     SOURCE_FOLDER    = "./src",
+    EXTRA_SOURCE_FOLDERS = {
+        "./useful_libraries/src",
+    },
     TEST_FOLDER      = "./tests",
     OUTPUT_FOLDER    = "./tests/Scripts_Copies_With_String_Requires",
     MOCK_LIBS_FOLDER = "./src/Mock_Roblox_Libs",
@@ -137,6 +140,7 @@ return {
 | Key | Default | Description |
 |---|---|---|
 | `SOURCE_FOLDER` | `"./src"` | Luau source directory (copied and rewritten during preprocessing) |
+| `EXTRA_SOURCE_FOLDERS` | `{}` | Additional source directories to flatten into the output (e.g. a shared `useful_libraries` submodule). The main `SOURCE_FOLDER` wins on filename collisions. |
 | `TEST_FOLDER` | `"./tests"` | Directory containing test files |
 | `OUTPUT_FOLDER` | `"./tests/Scripts_Copies_With_String_Requires"` | Where the Python pipeline writes rewritten source |
 | `MOCK_LIBS_FOLDER` | `"./src/Mock_Roblox_Libs"` | Project-specific mocks directory |

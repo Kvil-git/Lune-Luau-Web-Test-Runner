@@ -429,6 +429,7 @@ def run_pipeline(
     project_mock_dir: Optional[Path] = None,
     *,
     rename_lua: bool = True,
+    extra_source_dirs: Optional[List[Path]] = None,
 ) -> None:
     """Execute the full pipeline.
 
@@ -437,6 +438,10 @@ def run_pipeline(
       2. An optional project-specific mocks directory (--project-mocks).
 
     Project-specific mocks override built-in mocks when filenames collide.
+
+    Source files are flattened from *source_dir* and any *extra_source_dirs*
+    (e.g. a shared useful_libraries submodule).  The main source directory is
+    processed first, so it wins on filename collisions.
     """
     built_in_mocks_dir = Path(__file__).resolve().parent / "mocks"
 
@@ -500,37 +505,59 @@ def run_pipeline(
         print("[2] No project-specific mock directory specified")
 
     # Step 4 - discover, process, and copy source files.
-    source_files = find_luau_files(source_dir, exclude_dir=output_dir)
+    source_dirs: List[Path] = [source_dir] + (extra_source_dirs or [])
+    processed_names: Set[str] = set()
 
-    if (not source_files):
+    if (not source_dirs):
         print("[3] No .luau source files found")
         return
 
     # Build set of mock filenames so source files with the same name are skipped.
     mock_filenames = set(stem + ".luau" for stem in mock_stems)
 
-    print(f"[3] Processing {len(source_files)} source file(s)...")
-    skipped_for_mock = 0
+    total_processed  = 0
+    total_skipped_for_mock = 0
 
-    for src_path in source_files:
-        if (src_path.name in mock_filenames):
-            skipped_for_mock += 1
+    for sdir in source_dirs:
+        source_files = find_luau_files(sdir, exclude_dir=output_dir)
+
+        if (not source_files):
+            print(f"[3] No .luau source files found in {sdir}")
             continue
 
-        try:
-            content     = src_path.read_text(encoding="utf-8")
-            processed   = process_file(content, src_path.name, mock_stems)
-            (output_dir / src_path.name).write_text(processed, encoding="utf-8")
-            print(f"     {src_path.name}")
-        except Exception as exc:
-            print(f"  ERROR processing {src_path}: {exc}")
-            traceback.print_exc()
+        print(f"[3] Processing {len(source_files)} source file(s) from {sdir}...")
+        skipped_for_mock = 0
 
-    if (skipped_for_mock):
-        print(f"     ({skipped_for_mock} source file(s) skipped -- overridden by mock)")
+        for src_path in source_files:
+            if (src_path.name in mock_filenames):
+                skipped_for_mock += 1
+                continue
 
-    print()
-    total_processed = len(source_files) - skipped_for_mock
+            if (src_path.name in processed_names):
+                print(f"     SKIP (already processed): {src_path.name}")
+                continue
+
+            processed_names.add(src_path.name)
+
+            try:
+                content     = src_path.read_text(encoding="utf-8")
+                processed   = process_file(content, src_path.name, mock_stems)
+                (output_dir / src_path.name).write_text(processed, encoding="utf-8")
+                print(f"     {src_path.name}")
+            except Exception as exc:
+                print(f"  ERROR processing {src_path}: {exc}")
+                traceback.print_exc()
+
+        if (skipped_for_mock):
+            print(f"     ({skipped_for_mock} source file(s) skipped -- overridden by mock)")
+
+        total_processed         += len(source_files) - skipped_for_mock
+        total_skipped_for_mock  += skipped_for_mock
+        print()
+
+    if (total_skipped_for_mock):
+        print(f"({total_skipped_for_mock} source file(s) skipped -- overridden by mock)")
+
     print(f"Done - {total_processed} file(s) written to {output_dir}")
 
 
@@ -605,6 +632,13 @@ def main() -> None:
         dest="project_mocks",
         help="Directory containing project-specific mock library .luau files (overrides built-in mocks)",
     )
+    parser.add_argument(
+        "--extra-source",
+        action="append",
+        default=None,
+        dest="extra_sources",
+        help="Additional Luau source tree to flatten into the output (repeatable, e.g. a shared useful_libraries submodule)",
+    )
     parser.add_argument("--no-rename", action="store_true", help="Skip .lua => .luau renaming step")
     parser.add_argument("--test", action="store_true", help="Run built-in self-tests")
 
@@ -621,16 +655,28 @@ def main() -> None:
     source_path = Path(args.source).resolve()
     output_path = Path(args.output).resolve()
     project_mock_path = Path(args.project_mocks).resolve() if args.project_mocks else None
+    extra_source_paths = [Path(p).resolve() for p in (args.extra_sources or [])]
 
     if (not source_path.is_dir()):
         print(f"Error: source directory '{args.source}' does not exist.")
         sys.exit(1)
 
+    for extra_path in extra_source_paths:
+        if (not extra_path.is_dir()):
+            print(f"Error: extra source directory '{extra_path}' does not exist.")
+            sys.exit(1)
+
     if (project_mock_path and not project_mock_path.is_dir()):
         print(f"Error: mock directory '{args.project_mocks}' does not exist.")
         sys.exit(1)
 
-    run_pipeline(source_path, output_path, project_mock_path, rename_lua=not args.no_rename)
+    run_pipeline(
+        source_path,
+        output_path,
+        project_mock_path,
+        rename_lua=not args.no_rename,
+        extra_source_dirs=extra_source_paths,
+    )
 
 
 if (__name__ == "__main__"):

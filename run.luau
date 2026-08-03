@@ -139,13 +139,21 @@ end
 --
 if (not no_preproc) then
     print("[1/2] Running test pipeline ...")
-    local result = process.exec("python3", {
+
+    local python_args: {string} = {
         "./test_runner/Parse_Scripts_For_Tests.py",
         Constants["SOURCE_FOLDER"],
         Constants["OUTPUT_FOLDER"],
         "--project-mocks",
         Constants["MOCK_LIBS_FOLDER"],
-    })
+    }
+
+    for _, extra_source in ipairs(Constants["EXTRA_SOURCE_FOLDERS"]) do
+        table.insert(python_args, "--extra-source")
+        table.insert(python_args, extra_source)
+    end
+
+    local result = process.exec("python3", python_args)
 
     if (result.stdout ~= "") then
         print(result.stdout)
