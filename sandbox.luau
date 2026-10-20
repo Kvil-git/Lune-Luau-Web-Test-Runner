@@ -159,6 +159,9 @@ local function Make_Require(base_dir: string)
                     Ascending  = "Ascending",
                     Descending = "Descending",
                 },
+                CompressionAlgorithm = {
+                    Zstd = { Name = "Zstd", Value = 0 },
+                },
             },
         }
 
@@ -267,6 +270,9 @@ function Sandbox.run(
             SortDirection = {
                 Ascending  = "Ascending",
                 Descending = "Descending",
+            },
+            CompressionAlgorithm = {
+                Zstd = { Name = "Zstd", Value = 0 },
             },
         },
     }

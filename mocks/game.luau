@@ -2,8 +2,9 @@
 --
 -- REQUIRES
 --
-local fs     = require("@lune/fs")
-local roblox = require("@lune/roblox")
+local fs               = require("@lune/fs")
+local roblox           = require("@lune/roblox")
+local Encoding_Service = require("./EncodingService")
 --
 -- CONSTANTS
 --
@@ -459,8 +460,8 @@ local memory_store_shim = setmetatable({}, {
 -- game_proxy
 --
 -- Top-level proxy that intercepts GetService for the services we need
--- to stub (RunService, Players, MemoryStoreService) and passes all
--- other accesses through to the deserialised place object.
+-- to stub (RunService, Players, MemoryStoreService, EncodingService)
+-- and passes all other accesses through to the deserialised place object.
 --
 local game_proxy = setmetatable({}, {
     __index = function(_, key)
@@ -476,6 +477,10 @@ local game_proxy = setmetatable({}, {
 
                 if (service_name == "MemoryStoreService") then
                     return memory_store_shim
+                end
+
+                if (service_name == "EncodingService") then
+                    return Encoding_Service
                 end
 
                 return game:GetService(service_name)

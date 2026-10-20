@@ -511,7 +511,9 @@ The submodule ships with shared mocks in `test-runner/mocks/`:
 - **Vector2**, **Vector3**, **Color3**, **BrickColor** — Roblox datatype mocks
 - **Safe_Memory_Store_Hashmap** — MemoryStore HashMap wrapper
 - **Packets_List** — Packet communication stubs
-- **game** — Core Roblox game mock with RunService, Players, MemoryStore shims; reads the actual `.rbxlx` file if a path is configured
+- **Zstd_Codec** — Pure-Luau Zstandard (RFC 8878) encoder/decoder, no external dependencies
+- **EncodingService** — Mock of Roblox's EncodingService (`CompressBuffer` / `DecompressBuffer` / `GetDecompressedBufferSize`), backed by `Zstd_Codec`
+- **game** — Core Roblox game mock with RunService, Players, MemoryStore, EncodingService shims; reads the actual `.rbxlx` file if a path is configured
 
 Project-specific mocks in `src/Mock_Roblox_Libs/` override built-in mocks with the same filename. This lets you replace `game.luau` with a version that points to a different `.rbxlx` file, or add mocks like `Match_Results.luau` that are specific to your game logic.
 
