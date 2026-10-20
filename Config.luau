@@ -8,12 +8,12 @@ local fs = require("@lune/fs")
 -- EXPORT TYPES
 --
 export type Config = {
-    port:                     number,
-    test_folder:              string,
-    spec_pattern:            string,
-    frontend_path:           string,
+    port:                       number,
+    test_folder:                string,
+    spec_pattern:               string,
+    frontend_path:              string,
     heartbeat_interval_seconds: number,
-    reconnect_delay_seconds:  number,
+    reconnect_delay_seconds:    number,
 }
 
 --
@@ -24,13 +24,13 @@ export type Config = {
 --
 -- LOCAL CONSTANTS
 --
-local DEFAULT_CONFIG: Config = {
-    port                     = (8080),
-    test_folder              = "../tests",
-    spec_pattern             = "**/*.spec.luau",
-    frontend_path            = "./Front_End.html",
+local DEFAULT_CONFIG: Config   = {
+    port                       = (8080),
+    test_folder                = "../tests",
+    spec_pattern               = "**/*.spec.luau",
+    frontend_path              = "./Front_End.html",
     heartbeat_interval_seconds = (15),
-    reconnect_delay_seconds  = (3),
+    reconnect_delay_seconds    = (3),
 }
 
 --
@@ -112,9 +112,9 @@ end
 -- LOCAL TYPES
 --
 export type ConfigManager = {
-    get:              (self: ConfigManager) -> Config,
+    get:               (self: ConfigManager) -> Config,
     get_frontend_html: (self: ConfigManager) -> string,
-    update:           (self: ConfigManager, updates: {[string]: any}) -> (),
+    update:            (self: ConfigManager, updates: {[string]: any}) -> (),
 }
 
 --
